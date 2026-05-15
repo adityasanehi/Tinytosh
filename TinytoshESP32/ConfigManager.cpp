@@ -34,9 +34,11 @@ void ConfigManager::loadConfig(Config& config) {
   config.show_currency = preferences.getBool("show_curr", true);
   config.show_pc = preferences.getBool("show_pc", true);
   config.show_media = preferences.getBool("show_media", true);
+  config.show_bambu = preferences.getBool("show_bambu", true);
 
   config.hide_empty_pc = preferences.getBool("hide_pc", true);
   config.hide_empty_media = preferences.getBool("hide_media", true);
+  config.hide_empty_bambu = preferences.getBool("hide_bambu", true);
 
   // Weather & AQI Settings
   config.round_temps = preferences.getBool("round_temps", true);
@@ -58,9 +60,15 @@ void ConfigManager::loadConfig(Config& config) {
 
   // Night Mode Settings
   config.night_mode = preferences.getBool("night_mode", false);
-  config.night_start = preferences.getString("night_start", "22:00");
+  config.night_start = preferences.getString("night_start", "23:00");
   config.night_end = preferences.getString("night_end", "06:00");
+  config.night_dim_start = preferences.getString("night_dim", "22:00");
   config.night_action = preferences.getInt("night_action", 1);
+
+  // Printer Settings
+  config.bambu_ip = preferences.getString("bambu_ip", "");
+  config.bambu_sn = preferences.getString("bambu_sn", "");
+  config.bambu_code = preferences.getString("bambu_code", "");
 
   preferences.end();
   Serial.println("ConfigManager: Configuration loaded from NVS.");
@@ -93,9 +101,11 @@ void ConfigManager::saveConfig(const Config& config) {
   preferences.putBool("show_curr", config.show_currency);
   preferences.putBool("show_pc", config.show_pc);
   preferences.putBool("show_media", config.show_media);
+  preferences.putBool("show_bambu", config.show_bambu);
 
   preferences.putBool("hide_pc", config.hide_empty_pc);
   preferences.putBool("hide_media", config.hide_empty_media);
+  preferences.putBool("hide_bambu", config.hide_empty_bambu);
 
   // Weather & AQI Settings
   preferences.putBool("round_temps", config.round_temps);
@@ -119,7 +129,13 @@ void ConfigManager::saveConfig(const Config& config) {
   preferences.putBool("night_mode", config.night_mode);
   preferences.putString("night_start", config.night_start);
   preferences.putString("night_end", config.night_end);
+  preferences.putString("night_dim", config.night_dim_start);
   preferences.putInt("night_action", config.night_action);
+
+  // Printer Settings
+  preferences.putString("bambu_ip", config.bambu_ip);
+  preferences.putString("bambu_sn", config.bambu_sn);
+  preferences.putString("bambu_code", config.bambu_code);
 
   preferences.end();
   Serial.println("ConfigManager: Config saved.");

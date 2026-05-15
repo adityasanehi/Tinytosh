@@ -22,6 +22,7 @@ public:
     void drawStockScreen(const Config& config, const StockData& data);
     void drawPcScreen(const PcStats& pcStats);
     void drawMediaScreen(const PcMedia& media);
+    void drawBambuScreen(const BambuData& bambu);
     void drawInfoScreen(const unsigned char* image = nullptr, String text = "No Data");
 
     void drawScreen(int screenIndex, const AppState& state, TimeService& timeService);

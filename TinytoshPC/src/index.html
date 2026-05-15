@@ -123,15 +123,23 @@
             <p class='help-text mt-0'>Set a quiet schedule to pause animations, dim the screen, or save API calls.</p>
             <fieldset id="nightFields" class="collapsible">
               <legend>Night Schedule</legend>
-              <div class="dashboard-grid mt-0">
-                <div><label>Start Time:</label><input type="time" name="night_start"></div>
-                <div><label>End Time:</label><input type="time" name="night_end"></div>
-              </div>
-              <label>Screen Action:</label><select name="night_action">
+              
+              <label class="mt-0">Screen Action:</label>
+              <select name="night_action" id="nightActionSelect" style="margin-top: 8px;">
                 <option value="0">No Visual Change</option>
                 <option value="1">Dim Display</option>
                 <option value="2">Turn Display Off</option>
+                <option value="3">Dim then Turn Off</option>
               </select>
+
+              <div id="dimStartContainer" style="display: none;">
+                <label>Dim Start Time:</label><input type="time" name="night_dim_start">
+              </div>
+
+              <div class="dashboard-grid">
+                <div><label class="mt-0">Start Time:</label><input type="time" name="night_start"></div>
+                <div><label class="mt-0">End Time:</label><input type="time" name="night_end"></div>
+              </div>
             </fieldset>
           </div>
 
@@ -147,6 +155,7 @@
               <li class="sortable-item" data-id="5" data-target="showStock" draggable="true"><span class="drag-handle">☰</span>Stock Tracking</li>
               <li class="sortable-item" data-id="6" data-target="showPc" draggable="true"><span class="drag-handle">☰</span>PC Monitor</li>
               <li class="sortable-item" data-id="7" data-target="showMedia" draggable="true"><span class="drag-handle">☰</span>PC Media</li>
+              <li class="sortable-item" data-id="8" data-target="showBambu" draggable="true"><span class="drag-handle">☰</span>Printer Info</li>
             </ul>
             <input type="hidden" name="screen_order" id="screenOrderInput">
           </div>
@@ -268,32 +277,61 @@
             <div class="panel" id="panel-6">
               <label class="checkbox-label mt-0"><input type="checkbox" id="showPc" name="show_pc"> PC Monitoring Screen</label>
               <div id="pcContent" class="collapsible">
-                <div class="dashboard-grid">
-                  <div class="tile"><div class="tile-icon">📊</div><div class="tile-value" id="remote-pc-cpu">--%</div><div class="tile-label">CPU Usage</div></div>
-                  <div class="tile"><div class="tile-icon">🧠</div><div class="tile-value" id="remote-pc-ram">--%</div><div class="tile-label">RAM Usage</div></div>
-                  <div class="tile"><div class="tile-icon">💽</div><div class="tile-value" id="remote-pc-disk">--%</div><div class="tile-label">Disk Usage</div></div>
-                  <div class="tile"><div class="tile-icon">⬇️</div><div class="tile-value" id="remote-pc-net">-- KB/s</div><div class="tile-label">Download</div></div>      
+                <div id="pc-no-data" class="no-data-tile">🖥️ PC data will be available after sync</div>
+                <div id="pc-grid" class="hidden">
+                  <div class="dashboard-grid">
+                    <div class="tile"><div class="tile-icon">📊</div><div class="tile-value" id="remote-pc-cpu">--%</div><div class="tile-label">CPU Usage</div></div>
+                    <div class="tile"><div class="tile-icon">🧠</div><div class="tile-value" id="remote-pc-ram">--%</div><div class="tile-label">RAM Usage</div></div>
+                    <div class="tile"><div class="tile-icon">💽</div><div class="tile-value" id="remote-pc-disk">--%</div><div class="tile-label">Disk Usage</div></div>
+                    <div class="tile"><div class="tile-icon">⬇️</div><div class="tile-value" id="remote-pc-net">-- KB/s</div><div class="tile-label">Download</div></div>      
+                  </div>
                 </div>
+                <label class="checkbox-label"><input type="checkbox" name="hide_empty_pc"> Hide empty screen</label>
+                <p class="help-text mt-0">Screen is excluded from rotation when there is no data.</p>
               </div>
-              <label class="checkbox-label"><input type="checkbox" name="hide_empty_pc"> Hide empty screen</label>
-              <p class="help-text mt-0">Screen is excluded from rotation when there is no data.</p>
             </div>
-          </div>
 
-          <div class="panel" id="panel-7">
-            <label class="checkbox-label mt-0"><input type="checkbox" id="showMedia" name="show_media"> PC Media Screen</label>
-            <div id="mediaContent" class="collapsible">
-              <div class="dashboard-grid">
-                <div class="tile"><div class="tile-icon">🎵</div><div class="tile-value" id="settings-media-status" style="font-size:1.2rem">Stopped</div><div class="tile-label">Status</div></div>
-                <div class="tile"><div class="tile-icon">🎧</div><div class="tile-value" id="settings-media-name" style="font-size:1.2rem">No Media</div><div class="tile-label">Track</div></div>
-                <div class="tile"><div class="tile-icon">👤</div><div class="tile-value" id="settings-media-author" style="font-size:1.2rem">Unknown</div><div class="tile-label">Author</div></div>
-                <div class="tile"><div class="tile-icon">💿</div><div class="tile-value" id="settings-media-album" style="font-size:1.2rem">Unknown</div><div class="tile-label">Album</div></div>
+            <div class="panel" id="panel-7">
+              <label class="checkbox-label mt-0"><input type="checkbox" id="showMedia" name="show_media"> PC Media Screen</label>
+              <div id="mediaContent" class="collapsible">
+                <div id="media-no-data" class="no-data-tile">🎵 Media data will be available after sync and/or when media is played</div>
+                <div id="media-grid" class="hidden">
+                  <div class="dashboard-grid">
+                    <div class="tile"><div class="tile-icon">🎵</div><div class="tile-value" id="settings-media-status" style="font-size:1.2rem">Stopped</div><div class="tile-label">Status</div></div>
+                    <div class="tile"><div class="tile-icon">🎧</div><div class="tile-value" id="settings-media-name" style="font-size:1.2rem">No Media</div><div class="tile-label">Track</div></div>
+                    <div class="tile"><div class="tile-icon">👤</div><div class="tile-value" id="settings-media-author" style="font-size:1.2rem">Unknown</div><div class="tile-label">Author</div></div>
+                    <div class="tile"><div class="tile-icon">💿</div><div class="tile-value" id="settings-media-album" style="font-size:1.2rem">Unknown</div><div class="tile-label">Album</div></div>
+                  </div>
+                </div>
+                <label class="checkbox-label"><input type="checkbox" name="hide_empty_media"> Hide empty screen</label>
+                <p class="help-text mt-0">Screen is excluded from rotation when there is no data.</p>
               </div>
-              <label class="checkbox-label"><input type="checkbox" name="hide_empty_media"> Hide empty screen</label>
-              <p class="help-text mt-0">Screen is excluded from rotation when there is no data.</p>
             </div>
-          </div>
 
+            <div class="panel" id="panel-8">
+              <label class="checkbox-label mt-0"><input type="checkbox" id="showBambu" name="show_bambu"> Bambu 3D Printer Screen</label>
+              <div id="bambuContent" class="collapsible">
+                <div id="bambu-no-data" class="no-data-tile">🖨️ Printer data will be available after connection is established</div>
+                <div id="bambu-grid" class="hidden">
+                    <div class="dashboard-grid">
+                      <div class="tile"><div class="tile-icon">🖨️</div><div class="tile-value" id="bambu-status" style="font-size:1.2rem">OFFLINE</div><div class="tile-label">Status</div></div>
+                      <div class="tile"><div class="tile-icon">⏳</div><div class="tile-value" id="bambu-prog" style="font-size:1.1rem">--% | --m<br><span style="font-size:0.9rem">Layer: --/--</span></div><div class="tile-label">Progress</div></div>
+                      <div class="tile"><div class="tile-icon">🌡️</div><div class="tile-value" id="bambu-temps" style="font-size:1.1rem">Nozzle: --/--<br>Bed: --/--</div><div class="tile-label">Temperatures</div></div>
+                      <div class="tile"><div class="tile-icon">💨</div><div class="tile-value" id="bambu-fans" style="font-size:1.2rem">Part: -- | Aux: --</div><div class="tile-label">Fans</div></div>
+                    </div>
+                </div>
+                <label class="checkbox-label"><input type="checkbox" name="hide_empty_bambu"> Hide empty screen</label>
+                <p class="help-text mt-0">Screen is excluded from rotation when printer is offline.</p>
+                
+                <label>Printer IP Address:</label>
+                <input type="text" name="bambu_ip" placeholder="e.g. 192.168.0.100">
+                <label>Printer Serial Number:</label>
+                <input type="text" name="bambu_sn" placeholder="e.g. 00M...">
+                <label>Printer Access Code:</label>
+                <input type="text" name="bambu_code" placeholder="e.g. 1234abcd">
+              </div>
+            </div>
+          </div> 
           <button type="button" id="save-settings-btn" class="save-btn mb-20">💾 Save & Apply All Settings</button>
         </div>
       </form>

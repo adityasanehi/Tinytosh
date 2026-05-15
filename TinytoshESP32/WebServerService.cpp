@@ -68,7 +68,7 @@ void WebServerService::handleClient() {
 
 String WebServerService::generateRootPageContent() {
   String content;
-  content.reserve(45000); 
+  content.reserve(55000); 
 
   Config& config = state->config;
   WeatherData& weather = state->weather;
@@ -273,16 +273,21 @@ String WebServerService::generateRootPageContent() {
   content += "<fieldset id='nightFields' class='collapsible'>";
   content += "<legend>Night Schedule</legend>";
 
-  content += "<div class='dashboard-grid mt-0'>";
-  content += "  <div><label class='mt-0'>Start Time:</label><input type='time' name='night_start' value='" + String(config.night_start) + "'></div>";
-  content += "  <div><label class='mt-0'>End Time:</label><input type='time' name='night_end' value='" + String(config.night_end) + "'></div>";
-  content += "</div>";
-  
-  content += "<label>Screen Action:</label><select name='night_action'>";
+  content += "<label class='mt-0'>Screen Action:</label><select name='night_action' id='nightActionSelect' style='margin-top: 8px;'>";
   content += "<option value='0' " + String(config.night_action == 0 ? "selected" : "") + ">No Visual Change</option>";
   content += "<option value='1' " + String(config.night_action == 1 ? "selected" : "") + ">Dim Display</option>";
   content += "<option value='2' " + String(config.night_action == 2 ? "selected" : "") + ">Turn Display Off</option>";
-  content += "</select></fieldset></div>";
+  content += "<option value='3' " + String(config.night_action == 3 ? "selected" : "") + ">Dim then Turn Off</option>";
+  content += "</select>";
+
+  content += "<div id='dimStartContainer' style='display: none;'>";
+  content += "  <label>Dim Start Time:</label><input type='time' name='night_dim_start' value='" + String(config.night_dim_start) + "'>";
+  content += "</div>";
+
+  content += "<div class='dashboard-grid'>"; 
+  content += "  <div><label class='mt-0'>Start Time:</label><input type='time' name='night_start' value='" + String(config.night_start) + "'></div>";
+  content += "  <div><label class='mt-0'>End Time:</label><input type='time' name='night_end' value='" + String(config.night_end) + "'></div>";
+  content += "</div></fieldset></div>";
 
   // Screen Display Order Panel
   content += "<div class='panel'><h3 class='panel-title'>Screen Display Order</h3>";
@@ -302,6 +307,7 @@ String WebServerService::generateRootPageContent() {
       case SCREEN_STOCK: targetId = "showStock"; break;
       case SCREEN_PC_MONITOR: targetId = "showPc"; break;
       case SCREEN_PC_MEDIA: targetId = "showMedia"; break;
+      case SCREEN_BAMBU: targetId = "showBambu"; break;
     }
     
     content += "<li class='sortable-item' data-id='" + String(screenId) + "' data-target='" + targetId + "' draggable='true'>";
@@ -548,14 +554,55 @@ String WebServerService::generateRootPageContent() {
               content += "<div class='panel' id='panel-" + String(screenId) + "'>";
               content += "<label class='checkbox-label mt-0'><input type='checkbox' id='showMedia' name='show_media' value='1' " + String(config.show_media ? "checked" : "") + "> PC Media Screen</label>";
               content += "<div id='mediaContent' class='collapsible'>";
+
+              bool isMediaValid = (media.name.length() > 0 && media.author.length() > 0);
+              if (!isMediaValid) {
+                  content += "<div id='media-no-data' class='no-data-tile'>🎵 Media data will be available after sync and/or when media is played</div>";
+                  content += "<div id='media-grid' class='hidden'>";
+              } else {
+                  content += "<div id='media-no-data' class='no-data-tile hidden'>🎵 Media data will be available after sync and/or when media is played</div>";
+                  content += "<div id='media-grid'>";
+              }
+
               content += "<div class='dashboard-grid'>";
               content += "<div class='tile'><div class='tile-icon'>🎵</div><div class='tile-value' id='web-media-status' style='font-size:1.2rem'>" + media.status + "</div><div class='tile-label'>Status</div></div>";
               content += "<div class='tile'><div class='tile-icon'>🎧</div><div class='tile-value' id='web-media-name' style='font-size:1.2rem'>" + media.name + "</div><div class='tile-label'>Track</div></div>";
               content += "<div class='tile'><div class='tile-icon'>👤</div><div class='tile-value' id='web-media-author' style='font-size:1.2rem'>" + media.author + "</div><div class='tile-label'>Author</div></div>";
               content += "<div class='tile'><div class='tile-icon'>💿</div><div class='tile-value' id='web-media-album' style='font-size:1.2rem'>" + media.album + "</div><div class='tile-label'>Album</div></div>";
-              content += "</div>";
+              content += "</div></div>";
               content += "<label class='checkbox-label'><input type='checkbox' name='hide_empty_media' value='1' " + String(config.hide_empty_media ? "checked" : "") + "> Hide empty screen</label>";
               content += "<p class='help-text mt-0'>Screen is excluded from rotation when there is no data.</p>";
+              content += "</div></div>";
+              break;
+          }
+
+          case SCREEN_BAMBU: {
+              content += "<div class='panel' id='panel-" + String(screenId) + "'>";
+              content += "<label class='checkbox-label mt-0'><input type='checkbox' id='showBambu' name='show_bambu' value='1' " + String(config.show_bambu ? "checked" : "") + "> Bambu 3D Printer Screen</label>";
+              content += "<div id='bambuContent' class='collapsible'>";
+              
+              bool isBambuKnown = (state->bambu.status != "SYNCING");
+              if (!isBambuKnown) {
+                  content += "<div id='bambu-no-data' class='no-data-tile'>🖨️ Printer data will be available after connection is established</div>";
+                  content += "<div id='bambu-grid' class='hidden'>";
+              } else {
+                  content += "<div id='bambu-no-data' class='no-data-tile hidden'>🖨️ Printer data will be available after connection is established</div>";
+                  content += "<div id='bambu-grid'>";
+              }
+              
+              content += "<div class='dashboard-grid'>";
+              content += "<div class='tile'><div class='tile-icon'>🖨️</div><div class='tile-value' id='bambu-status' style='font-size:1.2rem'>" + state->bambu.status + "</div><div class='tile-label'>Status</div></div>";
+              content += "<div class='tile'><div class='tile-icon'>⏳</div><div class='tile-value' id='bambu-prog' style='font-size:1.1rem'>" + String(state->bambu.progress) + "% | " + String(state->bambu.time_left) + "m<br><span style='font-size:0.9rem'>Layers: " + String(state->bambu.layer) + "/" + String(state->bambu.total_layers) + "</span></div><div class='tile-label'>Progress</div></div>";
+              content += "<div class='tile'><div class='tile-icon'>🌡️</div><div class='tile-value' id='bambu-temps' style='font-size:1.1rem'>Nozzle: " + String(state->bambu.nozzle_temp, 1) + "/" + String(state->bambu.nozzle_target, 1) + "<br>Bed: " + String(state->bambu.bed_temp, 1) + "/" + String(state->bambu.bed_target, 1) + "</div><div class='tile-label'>Temperatures</div></div>";
+              content += "<div class='tile'><div class='tile-icon'>💨</div><div class='tile-value' id='bambu-fans' style='font-size:1.2rem'>Part: " + String(state->bambu.fan_part) + " | Aux: " + String(state->bambu.fan_aux) + "</div><div class='tile-label'>Fans</div></div>";
+              content += "</div></div>";
+
+              content += "<label class='checkbox-label'><input type='checkbox' name='hide_empty_bambu' value='1' " + String(config.hide_empty_bambu ? "checked" : "") + "> Hide empty screen</label>";
+              content += "<p class='help-text mt-0'>Screen is excluded from rotation when printer is offline.</p>";
+
+              content += "<label>Printer IP Address:</label><input type='text' name='bambu_ip' placeholder='e.g. 192.168.0.100' value='" + config.bambu_ip + "'>";
+              content += "<label>Printer Serial Number:</label><input type='text' name='bambu_sn' placeholder='e.g. 00M...' value='" + config.bambu_sn + "'>";
+              content += "<label>Printer Access Code:</label><input type='text' name='bambu_code' placeholder='e.g. 1234abcd' value='" + config.bambu_code + "'>";
               content += "</div></div>";
               break;
           }
@@ -569,7 +616,7 @@ String WebServerService::generateRootPageContent() {
   content += "let formDirty = false;";
   content += "function updateVisibility(){";
   
-  content += "  var pairs = [['autoDetect','manualFields',true], ['nightMode','nightFields',false], ['showTime', 'timeContent',false], ['showWeather','weatherContent',false], ['showPc','pcContent',false], ['showCrypto','cryptoContent',false], ['showCurrency','currencyContent',false], ['showStock','stockContent',false], ['showAQI','aqiContent',false], ['showMedia','mediaContent',false]];";  
+  content += "  var pairs = [['autoDetect','manualFields',true], ['nightMode','nightFields',false], ['showTime', 'timeContent',false], ['showWeather','weatherContent',false], ['showPc','pcContent',false], ['showCrypto','cryptoContent',false], ['showCurrency','currencyContent',false], ['showStock','stockContent',false], ['showAQI','aqiContent',false], ['showMedia','mediaContent',false], ['showBambu','bambuContent',false]];";  
   content += "  pairs.forEach(p => {";
   content += "    var ch = document.getElementById(p[0]); if(!ch) return;";
   content += "    var target = document.getElementById(p[1]);";
@@ -582,8 +629,16 @@ String WebServerService::generateRootPageContent() {
   content += "  var si = document.getElementById('screenIntInput');";
   content += "  if(ac && si) si.disabled = !ac.checked;";
   content += "}";
+
+  content += "function updateNightAction() {";
+  content += "  var action = document.getElementById('nightActionSelect').value;";
+  content += "  var dimCont = document.getElementById('dimStartContainer');";
+  content += "  if (action === '3') { dimCont.style.display = 'block'; } else { dimCont.style.display = 'none'; }";
+  content += "}";
+  content += "document.getElementById('nightActionSelect').addEventListener('change', updateNightAction);";
+  content += "updateNightAction();";
   
-  content += "['autoDetect', 'nightMode', 'showTime', 'showWeather', 'showPc', 'showCrypto', 'showCurrency', 'showStock', 'showAQI', 'showMedia', 'autoCycle'].forEach(id => { var el=document.getElementById(id); if(el) el.addEventListener('change', updateVisibility); });";
+  content += "['autoDetect', 'nightMode', 'showTime', 'showWeather', 'showPc', 'showCrypto', 'showCurrency', 'showStock', 'showAQI', 'showMedia', 'showBambu', 'autoCycle'].forEach(id => { var el=document.getElementById(id); if(el) el.addEventListener('change', updateVisibility); });";
   content += "updateVisibility();";
 
   // Handle "None" Checkbox Logic
@@ -656,7 +711,7 @@ String WebServerService::generateRootPageContent() {
   content += "}";
 
   // Hook Checkboxes to the sync function
-  content += "const panelCheckboxes = ['showTime', 'showWeather', 'showAQI', 'showCrypto', 'showCurrency', 'showStock', 'showPc', 'showMedia'];";
+  content += "const panelCheckboxes = ['showTime', 'showWeather', 'showAQI', 'showCrypto', 'showCurrency', 'showStock', 'showPc', 'showMedia', 'showBambu'];";
   content += "panelCheckboxes.forEach(id => {";
   content += "  const el = document.getElementById(id);";
   content += "  if (el) el.addEventListener('change', syncScreenOrder);";
@@ -745,6 +800,9 @@ String WebServerService::generateRootPageContent() {
   content += "    setVal('night_start', d.night_start);";
   content += "    setVal('night_end', d.night_end);";
   content += "    setVal('night_action', d.night_action);";
+  content += "    setVal('night_action', d.night_action);";
+  content += "    setVal('night_dim_start', d.night_dim_start);";
+  content += "    updateNightAction();";
   
   content += "    setCb('showTime', d.show_time);";
   content += "    setCb('date_display', d.date_display, true);";
@@ -766,8 +824,14 @@ String WebServerService::generateRootPageContent() {
   content += "    setVal('currency_multiplier', d.currency_multiplier);";
   content += "    setCb('currency_fn', d.currency_fn, true);";
   content += "    setCb('showMedia', d.show_media);";
+  content += "    setCb('showBambu', d.show_bambu);";
+  content += "    setVal('bambu_ip', d.bambu_ip);";
+  content += "    setVal('bambu_sn', d.bambu_sn);";
+  content += "    setVal('bambu_code', d.bambu_code);";
+
   content += "    setCb('hide_empty_pc', d.hide_empty_pc, true);";
   content += "    setCb('hide_empty_media', d.hide_empty_media, true);";
+  content += "    setCb('hide_empty_bambu', d.hide_empty_bambu, true);";
 
   content += "    const mask = d.anim_mask;";
   content += "    document.querySelectorAll('.anim-chk').forEach(cb => { cb.checked = (mask & parseInt(cb.value)) !== 0; });";
@@ -801,7 +865,7 @@ String WebServerService::generateRootPageContent() {
   content += "    set('value-hum', d.humidity + '%');";
   content += "    set('value-wind', d.wind_speed + ' km/h');";
   content += "    set('weather-upd', 'Last Update: ' + d.update_time);";
-  content += "  }";
+  content += "  } else { hide('weather-no-data', false); hide('weather-grid', true); }";
 
   content += "  if (d.aqi !== undefined && d.aqi !== 'nan') {";
   content += "    if (!set('value-aqi', d.aqi)) { location.reload(); return; }";
@@ -811,15 +875,7 @@ String WebServerService::generateRootPageContent() {
   content += "    set('value-pm10', d.pm10 + ' <small>µg</small>', true);";
   content += "    set('value-no2', d.no2 + ' <small>µg</small>', true);";
   content += "    set('aqi-upd', 'Last Update: ' + d.update_time);";
-  content += "  }";
-
-  content += "  if (d.pc_cpu !== undefined && d.pc_cpu !== '0.00' && d.pc_cpu !== '0') {";
-  content += "    if (!set('pc-cpu', Math.round(parseFloat(d.pc_cpu)) + '%')) { location.reload(); return; }";
-  content += "    hide('pc-no-data', true); hide('pc-grid', false);";
-  content += "    set('pc-net', Math.round(parseFloat(d.pc_net)) + ' KB/s');";
-  content += "    set('pc-ram', Math.round(parseFloat(d.pc_ram)) + '%');";
-  content += "    set('pc-disk', Math.round(parseFloat(d.pc_disk)) + '%');";
-  content += "  }";
+  content += "  } else { hide('aqi-no-data', false); hide('aqi-grid', true); }";
 
   content += "  if (d.crypto_price !== undefined && d.crypto_price !== 'nan') {";
   content += "    if (!set('crypto-price', d.crypto_price + '$')) { location.reload(); return; }";
@@ -827,14 +883,14 @@ String WebServerService::generateRootPageContent() {
   content += "    set('crypto-change', d.crypto_change + '%');";
   content += "    set('crypto-trend-icon', parseFloat(d.crypto_change) >= 0 ? '📈' : '📉');";
   content += "    set('crypto-upd', 'Last Update: ' + d.update_time);";
-  content += "  }";
+  content += "  } else { hide('crypto-no-data', false); hide('crypto-grid', true); }";
 
   content += "  if (d.currency_base_text !== undefined) {";
   content += "    if (!set('currency-base-val', d.currency_base_text)) { location.reload(); return; }";
   content += "    hide('currency-no-data', true); hide('currency-grid', false);";
   content += "    set('currency-target-val', d.currency_target_text);";
   content += "    set('currency-upd', 'Last Update: ' + d.update_time);";
-  content += "  }";
+  content += "  } else { hide('currency-no-data', false); hide('currency-grid', true); }";
   
   content += "  if (d.stock_price !== undefined && d.stock_price !== 'nan') {";
   content += "    if (!set('stock-price', '$' + d.stock_price)) { location.reload(); return; }";
@@ -843,15 +899,32 @@ String WebServerService::generateRootPageContent() {
   content += "    set('stock-trend-icon', parseFloat(d.stock_change) >= 0 ? '📈' : '📉');";
   content += "    set('stock-sym', d.stock_symbol + ' Price');"; 
   content += "    set('stock-upd', 'Last Update: ' + d.update_time);";
-  content += "  }";
+  content += "  } else { hide('stock-no-data', false); hide('stock-grid', true); }";
 
-  content += "  if (d.media_status !== undefined) {";
+  content += "  if (d.pc_cpu !== undefined && d.pc_cpu !== '0.00' && d.pc_cpu !== '0') {";
+  content += "    if (!set('pc-cpu', Math.round(parseFloat(d.pc_cpu)) + '%')) { location.reload(); return; }";
+  content += "    hide('pc-no-data', true); hide('pc-grid', false);";
+  content += "    set('pc-net', Math.round(parseFloat(d.pc_net)) + ' KB/s');";
+  content += "    set('pc-ram', Math.round(parseFloat(d.pc_ram)) + '%');";
+  content += "    set('pc-disk', Math.round(parseFloat(d.pc_disk)) + '%');";
+  content += "  } else { hide('pc-no-data', false); hide('pc-grid', true); }";
+
+  content += "  if (d.media_name && d.media_name !== '' && d.media_author && d.media_author !== '') {";
+  content += "    hide('media-no-data', true); hide('media-grid', false);";
   content += "    let s = d.media_status || 'stopped';";
   content += "    set('web-media-status', s.charAt(0).toUpperCase() + s.slice(1));";
-  content += "    set('web-media-name', d.media_name || 'No Media');";
-  content += "    set('web-media-author', d.media_author || 'Unknown');";
+  content += "    set('web-media-name', d.media_name);";
+  content += "    set('web-media-author', d.media_author);";
   content += "    set('web-media-album', d.media_album || 'Unknown');";
-  content += "  }";
+  content += "  } else { hide('media-no-data', false); hide('media-grid', true); }";
+
+  content += "  if (d.bambu_status !== undefined) {";
+  content += "    hide('bambu-no-data', true); hide('bambu-grid', false);";
+  content += "    set('bambu-status', d.bambu_status);";
+  content += "    set('bambu-prog', d.bambu_progress + '% | ' + d.bambu_time + 'm<br><span style=\"font-size:0.9rem\">Layer: ' + d.bambu_layer + '/' + d.bambu_total_layers + '</span>', true);";
+  content += "    set('bambu-temps', 'Nozzle: ' + parseFloat(d.bambu_nozzle).toFixed(1) + '/' + parseFloat(d.bambu_nozzle_target).toFixed(1) + '<br>Bed: ' + parseFloat(d.bambu_bed).toFixed(1) + '/' + parseFloat(d.bambu_bed_target).toFixed(1), true);";
+  content += "    set('bambu-fans', 'Part: ' + d.bambu_fan_part + ' | Aux: ' + d.bambu_fan_aux);";
+  content += "  } else { hide('bambu-no-data', false); hide('bambu-grid', true); }";
   
   content += "  if (d.pc_status !== undefined) set('pc-link-status', d.pc_status);";
   content += "}).catch(e => console.log('Sync error:', e)); } setInterval(updateData, 15000); updateData();";
@@ -861,7 +934,7 @@ String WebServerService::generateRootPageContent() {
 }
 
 void WebServerService::handleRoot() {
-  server.send(200, "text/html", generateRootPageContent());
+  server.send(HTTP_OK, "text/html", generateRootPageContent());
 }
 
 void WebServerService::handleSave() {
@@ -887,9 +960,11 @@ void WebServerService::handleSave() {
   config.show_currency = server.hasArg("show_currency");
   config.show_stock = server.hasArg("show_stock");
   config.show_media = server.hasArg("show_media");
+  config.show_bambu = server.hasArg("show_bambu");
 
   config.hide_empty_pc = server.hasArg("hide_empty_pc");
   config.hide_empty_media = server.hasArg("hide_empty_media");
+  config.hide_empty_bambu = server.hasArg("hide_empty_bambu");
 
   if (server.hasArg("screen_order")) {
     String orderStr = server.arg("screen_order");
@@ -927,6 +1002,7 @@ void WebServerService::handleSave() {
   // Night Mode Settings
   if (server.hasArg("night_action")) config.night_action = server.arg("night_action").toInt();
   if (server.hasArg("night_start")) config.night_start = server.arg("night_start");
+  if (server.hasArg("night_dim_start")) config.night_dim_start = server.arg("night_dim_start");
   if (server.hasArg("night_end")) config.night_end = server.arg("night_end");
 
   // Currency Settings
@@ -943,6 +1019,16 @@ void WebServerService::handleSave() {
   // Stock Settings
   if (server.hasArg("stock_symbol")) {
       config.stock_symbol = server.arg("stock_symbol");
+  }
+
+  if (server.hasArg("bambu_ip")) {
+    config.bambu_ip = server.arg("bambu_ip");
+  }
+  if (server.hasArg("bambu_sn")) {
+    config.bambu_sn = server.arg("bambu_sn");
+  }
+  if (server.hasArg("bambu_code")) {
+    config.bambu_code = server.arg("bambu_code");
   }
 
   if (!config.auto_detect && server.hasArg("city")) {
@@ -1002,7 +1088,7 @@ void WebServerService::handleSave() {
   }
   
   server.sendHeader("Location", "/", true);
-  server.send(302, "text/plain", "Settings saved. Redirecting...");
+  server.send(HTTP_REDIRECT, "text/plain", "Settings saved. Redirecting...");
 }
 
 void WebServerService::handleUpdate() {
@@ -1014,6 +1100,7 @@ void WebServerService::handleUpdate() {
   StockData& stock = state->stock;
   PcStats& pc = state->pc;
   PcMedia& media = state->media;
+  BambuData bambu = state->bambu;
 
   DynamicJsonDocument doc(3072); 
   
@@ -1038,6 +1125,7 @@ void WebServerService::handleUpdate() {
   doc["night_start"] = config.night_start;
   doc["night_end"] = config.night_end;
   doc["night_action"] = config.night_action;
+  doc["night_dim_start"] = config.night_dim_start;
 
   // Screen Toggles
   doc["show_time"] = config.show_time ? 1 : 0;
@@ -1070,8 +1158,15 @@ void WebServerService::handleUpdate() {
   doc["currency_multiplier"] = config.currency_multiplier;
   doc["currency_fn"] = config.currency_fn ? 1 : 0;
 
+  doc["show_bambu"] = config.show_bambu ? 1 : 0;
+
+  doc["bambu_ip"] = config.bambu_ip;
+  doc["bambu_sn"] = config.bambu_sn;
+  doc["bambu_code"] = config.bambu_code;
+
   doc["hide_empty_pc"] = config.hide_empty_pc ? 1 : 0;
   doc["hide_empty_media"] = config.hide_empty_media ? 1 : 0;
+  doc["hide_empty_bambu"] = config.hide_empty_bambu ? 1 : 0;
 
   String orderStr = "";
   for(int i = 0; i < NUM_SCREENS; i++) {
@@ -1141,22 +1236,36 @@ void WebServerService::handleUpdate() {
     doc["media_album"] = media.album;
   }
 
+  if (bambu.status != "SYNCING") {
+    doc["bambu_status"] = bambu.status;
+    doc["bambu_progress"] = bambu.progress;
+    doc["bambu_time"] = bambu.time_left;
+    doc["bambu_layer"] = bambu.layer;
+    doc["bambu_total_layers"] = bambu.total_layers;
+    doc["bambu_nozzle"] = String(bambu.nozzle_temp, 1);
+    doc["bambu_nozzle_target"] = String(bambu.nozzle_target, 1);
+    doc["bambu_bed"] = String(bambu.bed_temp, 1);
+    doc["bambu_bed_target"] = String(bambu.bed_target, 1);
+    doc["bambu_fan_part"] = bambu.fan_part;
+    doc["bambu_fan_aux"] = bambu.fan_aux;
+  }
+
   String activeId = config.active_pc_id;
   int lastDashSync = activeId.lastIndexOf(':');
   if (lastDashSync > 3) activeId = activeId.substring(0, lastDashSync);
 
-  bool isPcPaired = (activeId != "" && (millis() - pc.last_update < 5000));
+  bool isPcPaired = (activeId != "" && (millis() - pc.last_update < PC_DATA_TIMEOUT_MS));
   doc["pc_status"] = isPcPaired ? ("🔒 Paired to " + activeId) : "";
   
   String jsonResponse;
   serializeJson(doc, jsonResponse);
   
-  server.send(200, "application/json", jsonResponse);
+  server.send(HTTP_OK, "application/json", jsonResponse);
 }
 
 void WebServerService::handlePcStats() {
   if (!server.hasArg("plain")) {
-    server.send(400, "application/json", "{\"status\":\"error\", \"message\":\"Body not received\"}");
+    server.send(HTTP_BAD_REQUEST, "application/json", "{\"status\":\"error\", \"message\":\"Body not received\"}");
     return;
   }
   
@@ -1166,17 +1275,17 @@ void WebServerService::handlePcStats() {
   DeserializationError error = deserializeJson(doc, body);
   
   if (error) {
-    server.send(400, "application/json", "{\"status\":\"error\", \"message\":\"Invalid JSON\"}");
+    server.send(HTTP_BAD_REQUEST, "application/json", "{\"status\":\"error\", \"message\":\"Invalid JSON\"}");
     return;
   }
 
   String incoming_pc_id = doc["pc_id"] | "";
   if (incoming_pc_id == "") {
-    server.send(400, "application/json", "{\"status\":\"error\", \"message\":\"Missing PC ID\"}");
+    server.send(HTTP_BAD_REQUEST, "application/json", "{\"status\":\"error\", \"message\":\"Missing PC ID\"}");
     return;
   }
 
-  if (millis() - state->pc.last_update > 5000 || state->config.active_pc_id == incoming_pc_id || state->config.active_pc_id == "") {
+  if (millis() - state->pc.last_update > PC_DATA_TIMEOUT_MS || state->config.active_pc_id == incoming_pc_id || state->config.active_pc_id == "") {
     
     state->config.active_pc_id = incoming_pc_id;
     
@@ -1184,7 +1293,9 @@ void WebServerService::handlePcStats() {
     state->pc.mem_percent = doc["mem_percent"] | 0.0;
     state->pc.disk_percent = doc["disk_percent"] | 0.0;
     state->pc.net_down_kb = doc["net_down_kb"] | 0.0;
+    
     state->pc.last_update = millis();
+    state->pc.is_wifi = true;
 
     state->media.status = doc["media_status"] | "stopped";
     state->media.name = doc["media_name"] | "";
@@ -1192,8 +1303,8 @@ void WebServerService::handlePcStats() {
     state->media.album = doc["media_album"] | "";
     state->media.last_update = millis();
 
-    server.send(200, "application/json", "{\"status\":\"ok\"}");
+    server.send(HTTP_OK, "application/json", "{\"status\":\"ok\"}");
   } else {
-    server.send(403, "application/json", "{\"status\":\"error\", \"message\":\"Device is already paired to another PC\"}");
+    server.send(HTTP_FORBIDDEN, "application/json", "{\"status\":\"error\", \"message\":\"Device is already paired to another PC\"}");
   }
 }

@@ -8,7 +8,7 @@ public:
     bool fetchPrice(int id, CryptoData &data);
 
 private:
-    const char* CRYPTO_API_URL = "https://api.coinlore.net/api/ticker/";
+    static constexpr const char* CRYPTO_API_URL = "https://api.coinlore.net/api/ticker/";
 };
 
 #endif

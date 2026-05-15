@@ -2,6 +2,7 @@
 #include "images.h"
 #include <Arduino.h>
 #include <Fonts/Picopixel.h>
+#include <Fonts/Org_01.h>
 
 String DisplayService::getWeatherDescription(int wmo_code) {
     if (wmo_code == 0) return "Clear Sky";
@@ -542,7 +543,7 @@ void DisplayService::drawPcScreen(const PcStats& pcStats) {
 }
 
 void DisplayService::drawMediaScreen(const PcMedia& media) {
-    bool isInvalid = (media.status.length() == 0 || media.name.length() == 0);
+    bool isInvalid = (media.status.length() == 0 || media.name.length() == 0 || media.author.length() == 0 || media.name.equalsIgnoreCase("Unknown"));
 
     if (isInvalid) {
         drawInfoScreen(icon_note, "No Media"); 
@@ -573,11 +574,11 @@ void DisplayService::drawMediaScreen(const PcMedia& media) {
     if (statusStr == "PAUSED")  iconBits = icon_pause;
     display.drawBitmap(14, 52, iconBits, 8, 8, 1);
 
-    auto drawSmartText = [&](String text, int x, int &y, const GFXfont* font, bool isPicopixel) {
+    auto drawSmartText = [&](String text, int x, int &y, const GFXfont* font, bool isPicopixel, int maxLines) {
         if (text == "") return;
         display.setFont(font);
         
-        String lines[2] = {"", ""};
+        String lines[8] = {"", "", "", "", "", "", "", ""}; 
         int lineCount = 0;
         int start = 0;
         int maxWidth = 82; 
@@ -595,18 +596,18 @@ void DisplayService::drawMediaScreen(const PcMedia& media) {
                     lines[lineCount++] = word; 
                 } else {
                     lineCount++;
-                    if (lineCount < 2) lines[lineCount] = word;
+                    if (lineCount < maxLines) lines[lineCount] = word;
                 }
-                if (lineCount == 2) break; 
+                if (lineCount == maxLines) break; 
             } else {
                 lines[lineCount] = testLine;
             }
             start = spaceIdx + 1;
         }
-        if (lineCount < 2 && lines[lineCount].length() > 0) lineCount++;
+        if (lineCount < maxLines && lines[lineCount].length() > 0) lineCount++;
         
-        if (start < text.length() && lineCount == 2) {
-            String& lastLine = lines[1];
+        if (start < text.length() && lineCount == maxLines) {
+            String& lastLine = lines[maxLines - 1];
             while (lastLine.length() > 0) {
                 display.getTextBounds((lastLine + "...").c_str(), 0, 0, &x1, &y1, &w, &h);
                 if (w <= maxWidth) break;
@@ -626,10 +627,10 @@ void DisplayService::drawMediaScreen(const PcMedia& media) {
             } else {
                 display.setCursor(x, y);
                 display.print(lines[i]);
-                y += 8 + 1; 
+                y += 8 + 1;
             }
         }
-        y += 6; 
+        y += 6;
     };
 
     int cursorY = 4;
@@ -639,10 +640,170 @@ void DisplayService::drawMediaScreen(const PcMedia& media) {
 
     String albumName = media.album;
     albumName.toUpperCase();
+    bool hasAlbum = (albumName.length() > 0 && albumName != "UNKNOWN");
+
+    int reservedForAuthor = 15;
+    int reservedForAlbum = hasAlbum ? 12 : 0;
+
+    int trackAvailY = 64 - cursorY - reservedForAuthor - reservedForAlbum;
+    int maxTrackLines = max(1, trackAvailY / 9);
+    drawSmartText(trackName, 44, cursorY, nullptr, false, maxTrackLines);
+
+    int authorAvailY = 64 - cursorY - reservedForAlbum;
+    int maxAuthorLines = max(1, authorAvailY / 9);
+    drawSmartText(media.author, 44, cursorY, nullptr, false, maxAuthorLines);
+
+    if (hasAlbum) {
+        int albumAvailY = 64 - cursorY;
+        int maxAlbumLines = max(1, albumAvailY / 6);
+        drawSmartText(albumName, 44, cursorY, &Picopixel, true, maxAlbumLines);
+    }
+}
+
+void DisplayService::drawBambuScreen(const BambuData& data) {
+    bool isInvalid = (data.status == "SYNCING" || data.status.length() == 0);
+
+    if (isInvalid) {
+        drawInfoScreen(icon_printer, "No Printer"); 
+        return; 
+    }
+
+    display.clearDisplay();
+
+    display.setTextColor(SSD1306_WHITE);
+    display.setTextWrap(false);
+    display.setTextSize(1);
+    display.setFont(); 
+
+    String status = data.status;
+    status.toUpperCase();
+    bool isIdle = (status == "IDLE" || status == "FINISH" || status == "FINISHED" || status == "FAILED");
+
+    if (isIdle) {
+        // 1. Printer Icon & IDLE Text (Left side)
+        display.drawBitmap(22, 9, icon_printer, 32, 32, 1);
+        
+        display.setTextSize(1);
+        display.setCursor(26, 45);
+        display.print("IDLE");
+
+        display.setTextSize(2);
+
+        // 2. Nozzle Temp (Top Right)
+        String n_val = String((int)round(data.nozzle_temp));
+        int n_circle_x = 79 + (n_val.length() * 12) + 5; 
+        
+        display.drawBitmap(65, 17, icon_nozzle, 8, 8, 1);
+        display.setCursor(79, 13);
+        display.print(n_val);
+        display.drawCircle(n_circle_x, 16, 3, SSD1306_WHITE); 
+
+        // 3. Bed Temp (Bottom Right)
+        String b_val = String((int)round(data.bed_temp));
+        int b_circle_x = 79 + (b_val.length() * 12) + 5;
+        
+        display.drawBitmap(65, 41, icon_bed, 8, 8, 1);
+        display.setCursor(79, 37);
+        display.print(b_val);
+        display.drawCircle(b_circle_x, 40, 3, SSD1306_WHITE);
+
+        return;
+    }
     
-    drawSmartText(trackName, 44, cursorY, nullptr, false);
-    drawSmartText(media.author, 44, cursorY, nullptr, false);
-    drawSmartText(albumName, 44, cursorY, &Picopixel, true);
+    display.setTextSize(1);
+    display.setFont();
+
+    int16_t x1, y1;
+    uint16_t w, h;
+
+    // 1. Icons
+    display.drawBitmap(4, 4, icon_nozzle, 8, 8, 1);
+    display.drawBitmap(4, 16, icon_bed, 8, 8, 1);
+    display.drawBitmap(116, 4, icon_part_fan, 8, 8, 1);
+    display.drawBitmap(116, 16, icon_aux_fan, 8, 8, 1);
+
+    // 2. Temperatures (Smart Slash Alignment)
+    String n_lhs = String((int)round(data.nozzle_temp));
+    String n_rhs = "/" + String((int)round(data.nozzle_target)) + " C";
+    String b_lhs = String((int)round(data.bed_temp));
+    String b_rhs = "/" + String((int)round(data.bed_target)) + " C";
+
+    uint16_t w_n_lhs, w_b_lhs;
+    display.getTextBounds(n_lhs.c_str(), 0, 0, &x1, &y1, &w_n_lhs, &h);
+    display.getTextBounds(b_lhs.c_str(), 0, 0, &x1, &y1, &w_b_lhs, &h);
+
+    int startX = 16; 
+    int x_slash = startX + max(w_n_lhs, w_b_lhs);
+
+    display.setCursor(x_slash - w_n_lhs, 4);
+    display.print(n_lhs + n_rhs);
+
+    display.setCursor(x_slash - w_b_lhs, 16);
+    display.print(b_lhs + b_rhs);
+
+    // 3. Fans (Right Alignment)
+    String p_fan = String(data.fan_part) + "%";
+    String a_fan = String(data.fan_aux) + "%";
+
+    display.getTextBounds(p_fan.c_str(), 0, 0, &x1, &y1, &w, &h);
+    display.setCursor(116 - 4 - w, 4);
+    display.print(p_fan);
+
+    display.getTextBounds(a_fan.c_str(), 0, 0, &x1, &y1, &w, &h);
+    display.setCursor(116 - 4 - w, 16);
+    display.print(a_fan);
+
+    // 4. File Name (Center Alignment & Truncation)
+    String fileName = data.file_name;
+    
+    if (fileName.length() == 0 || fileName.equalsIgnoreCase("None")) {
+        fileName = "Idle";
+    }
+        
+    int maxWidth = 120; 
+    display.getTextBounds(fileName.c_str(), 0, 0, &x1, &y1, &w, &h);
+    
+    if (w > maxWidth) {
+        String trunc;
+        for (int i = 1; i <= fileName.length() / 2; i++) {
+            int leftLen = (fileName.length() / 2) - i;
+            int rightLen = fileName.length() - (fileName.length() / 2) - i;
+            trunc = fileName.substring(0, leftLen) + "..." + fileName.substring(fileName.length() - rightLen);
+            
+            display.getTextBounds(trunc.c_str(), 0, 0, &x1, &y1, &w, &h);
+            if (w <= maxWidth) {
+                fileName = trunc;
+                break;
+            }
+        }
+    }
+    
+    display.getTextBounds(fileName.c_str(), 0, 0, &x1, &y1, &w, &h);
+    int cursorX = (128 - w) / 2;
+    
+    display.setCursor(cursorX, 31);
+    display.print(fileName);
+
+    // 5. Progress Bar
+    display.drawRect(4, 43, 120, 6, 1);
+    int fillW = (int)((constrain(data.progress, 0, 100) / 100.0) * 116);
+    if (fillW > 0) display.fillRect(6, 45, fillW, 2, 1);
+
+    // 6. Stats
+    String progStr = String(data.progress) + "%";
+    String layerStr = String(data.layer) + "/" + String(data.total_layers);
+    String timeStr = String(data.time_left) + "m";
+
+    display.setCursor(4, 53);
+    display.print(progStr);
+
+    display.getTextBounds(layerStr.c_str(), 0, 0, &x1, &y1, &w, &h);
+    display.setCursor(64 - (w / 2), 53);
+    display.print(layerStr);
+
+    display.getTextBounds(timeStr.c_str(), 0, 0, &x1, &y1, &w, &h);
+    display.setCursor(128 - 4 - w, 53);
+    display.print(timeStr);
 }
 
 void DisplayService::drawInfoScreen(const unsigned char* image, String text) {
@@ -701,7 +862,15 @@ bool DisplayService::isScreenEnabled(const AppState& state, int screenIndex) {
         case SCREEN_PC_MEDIA: {
             if (!config.show_media) return false;
             if (config.hide_empty_media) {
-                bool isInvalid = (state.media.status.length() == 0 || state.media.name.length() == 0);
+                bool isInvalid = (state.media.status.length() == 0 || state.media.name.length() == 0 || state.media.author.length() == 0 || state.media.name.equalsIgnoreCase("Unknown"));
+                if (isInvalid) return false;
+            }
+            return true;
+        }
+        case SCREEN_BAMBU: {
+            if (!config.show_bambu) return false;
+            if (config.hide_empty_bambu) {
+                bool isInvalid = (state.bambu.status == "SYNCING");
                 if (isInvalid) return false;
             }
             return true;
@@ -735,6 +904,9 @@ void DisplayService::drawScreen(int screenIndex, const AppState& state, TimeServ
       break;
     case SCREEN_PC_MEDIA:
       drawMediaScreen(state.media);
+      break;
+    case SCREEN_BAMBU:
+      drawBambuScreen(state.bambu);
       break;
   }
 }

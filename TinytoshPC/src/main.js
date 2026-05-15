@@ -220,8 +220,10 @@ async function updateStats() {
             const mAuthor = document.getElementById("media-author");
             const mAlbum = document.getElementById("media-album");
             
+            let hasValidMedia = data.media_name && data.media_name !== "" && data.media_name.toLowerCase() !== "unknown";
+
             if (mStatus) {
-                const statusText = data.media_status || "stopped"; 
+                const statusText = hasValidMedia ? (data.media_status || "stopped") : "stopped"; 
                 mStatus.innerText = statusText.toUpperCase();
                 
                 if (statusText === "playing") mStatus.style.color = COLOR_SUCCESS; 
@@ -230,11 +232,11 @@ async function updateStats() {
             }
             
             if (mName) {
-                mName.innerText = data.media_name || "No Media";
+                mName.innerText = hasValidMedia ? data.media_name : "No Media";
             }
             
             if (mAuthor) {
-                if (data.media_author) {
+                if (hasValidMedia && data.media_author) {
                     mAuthor.innerText = data.media_author;
                     mAuthor.classList.remove("hidden");
                 } else {
@@ -243,7 +245,7 @@ async function updateStats() {
             }
             
             if (mAlbum) {
-                if (data.media_album) {
+                if (hasValidMedia && data.media_album) {
                     mAlbum.innerText = data.media_album;
                     mAlbum.classList.remove("hidden");
                 } else {
@@ -426,7 +428,8 @@ function updateVisibility() {
       ['showTime', 'timeContent',false], ['showWeather','weatherContent',false], 
       ['showPc','pcContent',false], ['showCrypto','cryptoContent',false], 
       ['showCurrency','currencyContent',false], ['showStock','stockContent',false], 
-      ['showAQI','aqiContent',false], ['showMedia', 'mediaContent', false]
+      ['showAQI','aqiContent',false], ['showMedia', 'mediaContent', false],
+      ['showBambu', 'bambuContent', false]
   ];
   pairs.forEach(p => {
     var ch = document.getElementById(p[0]); if(!ch) return;
@@ -439,6 +442,16 @@ function updateVisibility() {
   var ac = document.getElementById('autoCycle');
   var si = document.getElementById('screenIntInput');
   if(ac && si) si.disabled = !ac.checked;
+}
+
+function updateNightAction() {
+    const action = document.getElementById('nightActionSelect').value;
+    const dimCont = document.getElementById('dimStartContainer');
+    if (action === '3') { 
+        dimCont.style.display = 'block'; 
+    } else { 
+        dimCont.style.display = 'none'; 
+    }
 }
 
 function reorderPhysicalPanels(orderCsv) {
@@ -567,8 +580,10 @@ async function fetchDeviceData() {
             
             setCb('nightMode', d.night_mode);
             setVal('night_start', d.night_start);
+            setVal('night_dim_start', d.night_dim_start);
             setVal('night_end', d.night_end);
             setVal('night_action', d.night_action);
+            updateNightAction();
             
             setCb('showTime', d.show_time);
             setCb('date_display', d.date_display, true);
@@ -590,8 +605,14 @@ async function fetchDeviceData() {
             setVal('currency_multiplier', d.currency_multiplier);
             setCb('currency_fn', d.currency_fn, true);
             setCb('showMedia', d.show_media);
+            setCb('showBambu', d.show_bambu);
+            setVal('bambu_ip', d.bambu_ip);
+            setVal('bambu_sn', d.bambu_sn);
+            setVal('bambu_code', d.bambu_code);
+
             setCb('hide_empty_pc', d.hide_empty_pc, true);
             setCb('hide_empty_media', d.hide_empty_media, true);
+            setCb('hide_empty_bambu', d.hide_empty_bambu, true);
 
             if (d.anim_mask !== undefined) {
                 const mask = d.anim_mask;
@@ -636,7 +657,7 @@ async function fetchDeviceData() {
         const locInfo = document.getElementById("location-info");
         if (locInfo) locInfo.innerText = `📍 ${city} (${tz})`;
 
-        if (d.temp !== undefined) {
+        if (d.temp !== undefined && d.temp !== 'nan') {
             let nd = document.getElementById('weather-no-data'); if(nd) nd.style.display = 'none';
             let gr = document.getElementById('weather-grid'); if(gr) gr.classList.remove('hidden');
 
@@ -645,6 +666,9 @@ async function fetchDeviceData() {
             set('value-hum', d.humidity + '%');
             set('value-wind', d.wind_speed + ' km/h');
             set('weather-upd', 'Last Update: ' + d.update_time);
+        } else {
+            let nd = document.getElementById('weather-no-data'); if(nd) nd.style.display = 'block';
+            let gr = document.getElementById('weather-grid'); if(gr) gr.classList.add('hidden');
         }
 
         if (d.aqi !== undefined && d.aqi !== -1) {
@@ -657,6 +681,9 @@ async function fetchDeviceData() {
             set('value-pm10', d.pm10 + ' <small>µg</small>', true);
             set('value-no2', d.no2 + ' <small>µg</small>', true);
             set('aqi-upd', 'Last Update: ' + d.update_time);
+        } else {
+            let nd = document.getElementById('aqi-no-data'); if(nd) nd.style.display = 'block';
+            let gr = document.getElementById('aqi-grid'); if(gr) gr.classList.add('hidden');
         }
 
         if (d.crypto_price !== undefined) {
@@ -667,6 +694,9 @@ async function fetchDeviceData() {
             set('crypto-change', d.crypto_change + '%');
             set('crypto-trend-icon', d.crypto_change >= 0 ? '📈' : '📉');
             set('crypto-upd', 'Last Update: ' + d.update_time);
+        } else {
+            let nd = document.getElementById('crypto-no-data'); if(nd) nd.style.display = 'block';
+            let gr = document.getElementById('crypto-grid'); if(gr) gr.classList.add('hidden');
         }
 
         if (d.currency_base_text !== undefined) {
@@ -676,6 +706,9 @@ async function fetchDeviceData() {
             set('currency-base-val', d.currency_base_text);
             set('currency-target-val', d.currency_target_text);
             set('currency-upd', 'Last Update: ' + d.update_time);
+        } else {
+            let nd = document.getElementById('currency-no-data'); if(nd) nd.style.display = 'block';
+            let gr = document.getElementById('currency-grid'); if(gr) gr.classList.add('hidden');
         }
         
         if (d.stock_price !== undefined) {
@@ -687,28 +720,53 @@ async function fetchDeviceData() {
             set('stock-trend-icon', d.stock_change >= 0 ? '📈' : '📉');
             set('stock-sym', d.stock_symbol + ' Price');
             set('stock-upd', 'Last Update: ' + d.update_time);
+        } else {
+            let nd = document.getElementById('stock-no-data'); if(nd) nd.style.display = 'block';
+            let gr = document.getElementById('stock-grid'); if(gr) gr.classList.add('hidden');
         }
 
         if (d.pc_cpu !== undefined && d.pc_cpu !== "0.00" && d.pc_cpu !== "0") {
+            let nd = document.getElementById('pc-no-data'); if(nd) nd.style.display = 'none';
+            let gr = document.getElementById('pc-grid'); if(gr) gr.classList.remove('hidden');
+
             set('remote-pc-cpu', Math.round(parseFloat(d.pc_cpu)) + '%');
-            
             let netDown = parseFloat(d.pc_net);
             let netVal = netDown >= 1024 ? (netDown / 1024).toFixed(1) : Math.round(netDown);
             let netUnit = netDown >= 1024 ? "MB/s" : "KB/s";
             set('remote-pc-net', netVal + " " + netUnit);
-            
             set('remote-pc-ram', Math.round(parseFloat(d.pc_ram)) + '%');
             set('remote-pc-disk', Math.round(parseFloat(d.pc_disk)) + '%');
+        } else {
+            let nd = document.getElementById('pc-no-data'); if(nd) nd.style.display = 'block';
+            let gr = document.getElementById('pc-grid'); if(gr) gr.classList.add('hidden');
         }
 
-        if (d.media_status !== undefined) {
+        if (d.media_name && d.media_name !== '' && d.media_author && d.media_author !== '') {
+            let nd = document.getElementById('media-no-data'); if(nd) nd.style.display = 'none';
+            let gr = document.getElementById('media-grid'); if(gr) gr.classList.remove('hidden');
+
             let status = d.media_status || "stopped";
             let capitalizedStatus = status.charAt(0).toUpperCase() + status.slice(1);
-
             set('settings-media-status', capitalizedStatus);
-            set('settings-media-name', d.media_name || 'No Media');
-            set('settings-media-author', d.media_author || 'Unknown');
+            set('settings-media-name', d.media_name);
+            set('settings-media-author', d.media_author);
             set('settings-media-album', d.media_album || 'Unknown');
+        } else {
+            let nd = document.getElementById('media-no-data'); if(nd) nd.style.display = 'block';
+            let gr = document.getElementById('media-grid'); if(gr) gr.classList.add('hidden');
+        }
+
+        if (d.bambu_status !== undefined) {
+            let nd = document.getElementById('bambu-no-data'); if(nd) nd.style.display = 'none';
+            let gr = document.getElementById('bambu-grid'); if(gr) gr.classList.remove('hidden');
+
+            set('bambu-status', d.bambu_status);
+            set('bambu-prog', d.bambu_progress + '% | ' + d.bambu_time + 'm<br><span style="font-size:0.9rem">Layer: ' + d.bambu_layer + '/' + d.bambu_total_layers + '</span>', true);
+            set('bambu-temps', 'Nozzle: ' + parseFloat(d.bambu_nozzle).toFixed(1) + '/' + parseFloat(d.bambu_nozzle_target).toFixed(1) + '<br>Bed: ' + parseFloat(d.bambu_bed).toFixed(1) + '/' + parseFloat(d.bambu_bed_target).toFixed(1), true);
+            set('bambu-fans', 'Part: ' + d.bambu_fan_part + ' | Aux: ' + d.bambu_fan_aux);
+        } else {
+            let nd = document.getElementById('bambu-no-data'); if(nd) nd.style.display = 'block';
+            let gr = document.getElementById('bambu-grid'); if(gr) gr.classList.add('hidden');
         }
 
     } catch (e) {
@@ -729,7 +787,7 @@ window.addEventListener("DOMContentLoaded", () => {
     setInterval(fetchDeviceData, HARDWARE_SYNC_INTERVAL_MS); 
     setTimeout(fetchDeviceData, INITIAL_SYNC_DELAY_MS); 
 
-    ['autoDetect', 'nightMode', 'showTime', 'showWeather', 'showPc', 'showCrypto', 'showCurrency', 'showStock', 'showAQI', 'showMedia', 'autoCycle'].forEach(id => { 
+    ['autoDetect', 'nightMode', 'showTime', 'showWeather', 'showPc', 'showCrypto', 'showCurrency', 'showStock', 'showAQI', 'showMedia', 'showBambu', 'autoCycle'].forEach(id => { 
         var el = document.getElementById(id); 
         if(el) el.addEventListener('change', () => { updateVisibility(); syncScreenOrder(true); }); 
     });
@@ -740,7 +798,21 @@ window.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll('.anim-chk').forEach(cb => cb.addEventListener('change', checkSafetyNet));
     toggleNone();
 
+    const nightActionSelect = document.getElementById('nightActionSelect');
+    if (nightActionSelect) nightActionSelect.addEventListener('change', updateNightAction);
+
     const list = document.getElementById('sortable-list');
+    
+    document.addEventListener('dragover', e => {
+        e.preventDefault();
+        if (e.dataTransfer) {
+            e.dataTransfer.dropEffect = 'move';
+        }
+    });
+
+    document.addEventListener('drop', e => {
+        e.preventDefault();
+    });
     
     list.addEventListener('dragstart', e => { 
         const item = e.target.closest('.sortable-item');
@@ -756,11 +828,6 @@ window.addEventListener("DOMContentLoaded", () => {
             e.dataTransfer.setData('text/plain', item.dataset.id);
         }
     });
-
-    list.addEventListener('dragenter', e => e.preventDefault());
-    
-    list.addEventListener('drop', e => e.preventDefault());
-
     list.addEventListener('dragover', e => { 
         e.preventDefault(); 
         if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';

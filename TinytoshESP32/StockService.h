@@ -3,13 +3,12 @@
 
 #include "structs.h"
 
-
 class StockService {
 public:
     bool fetchStock(const String& symbol, StockData &data);
 
 private:
-    const char* STOCK_API_URL = "https://stooq.com/q/l/";
+    static constexpr const char* STOCK_API_URL = "https://stooq.com/q/l/";
 };
 
 #endif

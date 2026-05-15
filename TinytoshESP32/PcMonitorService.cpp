@@ -23,14 +23,16 @@ bool PcMonitorService::handleSerial(AppState &state) {
         }
     }
 
-    if (millis() - state.pc.last_update > DATA_TIMEOUT_MS) {
+    unsigned long activeTimeout = state.pc.is_wifi ? WIFI_DATA_TIMEOUT_MS : DATA_TIMEOUT_MS;
+
+    if (millis() - state.pc.last_update > activeTimeout) {
         state.pc.cpu_percent = 0;
         state.pc.net_down_kb = 0;
         state.pc.mem_percent = 0;
         state.pc.disk_percent = 0;
     }
 
-    if (millis() - state.media.last_update > DATA_TIMEOUT_MS) {
+    if (millis() - state.media.last_update > activeTimeout) {
         state.media.status = "stopped";
         state.media.name = "";
         state.media.author = "";
@@ -62,6 +64,7 @@ void PcMonitorService::parseJson(const char* jsonString, AppState &state) {
         
         unsigned long current_time = millis();
         state.pc.last_update = current_time; 
+        state.pc.is_wifi = false;
         state.media.last_update = current_time;
     }
 }
@@ -88,6 +91,7 @@ void PcMonitorService::sendUpdateOverSerial(AppState &state) {
     doc["night_mode"] = config.night_mode ? 1 : 0;
     doc["night_start"] = config.night_start;
     doc["night_end"] = config.night_end;
+    doc["night_dim_start"] = config.night_dim_start;
     doc["night_action"] = config.night_action;
 
     // Pack Screen Toggles
@@ -111,8 +115,13 @@ void PcMonitorService::sendUpdateOverSerial(AppState &state) {
     doc["currency_multiplier"] = config.currency_multiplier;
     doc["currency_fn"] = config.currency_fn ? 1 : 0;
     doc["show_media"] = config.show_media ? 1 : 0;
+    doc["show_bambu"] = config.show_bambu ? 1 : 0;
+    doc["bambu_ip"] = config.bambu_ip;
+    doc["bambu_sn"] = config.bambu_sn;
+    doc["bambu_code"] = config.bambu_code;
     doc["hide_empty_pc"] = config.hide_empty_pc ? 1 : 0;
     doc["hide_empty_media"] = config.hide_empty_media ? 1 : 0;
+    doc["hide_empty_bambu"] = config.hide_empty_bambu ? 1 : 0;
 
     String orderStr = "";
     for(int i = 0; i < NUM_SCREENS; i++) {
@@ -128,6 +137,7 @@ void PcMonitorService::sendUpdateOverSerial(AppState &state) {
     StockData& stock = state.stock;
     PcStats& pc = state.pc;
     PcMedia& media = state.media;
+    BambuData& bambu = state.bambu;
 
     doc["update_time"] = weather.update_time;
     if (!isnan(weather.temp)) {
@@ -178,6 +188,20 @@ void PcMonitorService::sendUpdateOverSerial(AppState &state) {
         doc["media_album"] = media.album;
     }
 
+    if (bambu.status != "SYNCING") {
+        doc["bambu_status"] = bambu.status;
+        doc["bambu_progress"] = bambu.progress;
+        doc["bambu_time"] = bambu.time_left;
+        doc["bambu_layer"] = bambu.layer;
+        doc["bambu_total_layers"] = bambu.total_layers;
+        doc["bambu_nozzle"] = String(bambu.nozzle_temp, 1);
+        doc["bambu_nozzle_target"] = String(bambu.nozzle_target, 1);
+        doc["bambu_bed"] = String(bambu.bed_temp, 1);
+        doc["bambu_bed_target"] = String(bambu.bed_target, 1);
+        doc["bambu_fan_part"] = bambu.fan_part;
+        doc["bambu_fan_aux"] = bambu.fan_aux;
+    }
+
     String activeId = config.active_pc_id;
     int lastDashSync = activeId.lastIndexOf(':');
     if (lastDashSync > 3) activeId = activeId.substring(0, lastDashSync);
@@ -186,8 +210,6 @@ void PcMonitorService::sendUpdateOverSerial(AppState &state) {
 
     String jsonResponse;
     serializeJson(doc, jsonResponse);
-    Serial.print("SYS_UPDATE:");
-    Serial.println(jsonResponse);
 }
 
 bool PcMonitorService::parseConfigJson(const char* jsonString, AppState &state) {
@@ -216,6 +238,7 @@ bool PcMonitorService::parseConfigJson(const char* jsonString, AppState &state) 
     if (doc.containsKey("night_mode")) config.night_mode = doc["night_mode"] == 1;
     if (doc.containsKey("night_start")) config.night_start = doc["night_start"].as<String>();
     if (doc.containsKey("night_end")) config.night_end = doc["night_end"].as<String>();
+    if (doc.containsKey("night_dim_start")) config.night_dim_start = doc["night_dim_start"].as<String>();
     if (doc.containsKey("night_action")) config.night_action = doc["night_action"];
 
     if (doc.containsKey("show_time")) config.show_time = doc["show_time"] == 1;
@@ -242,9 +265,15 @@ bool PcMonitorService::parseConfigJson(const char* jsonString, AppState &state) 
     if (doc.containsKey("currency_fn")) config.currency_fn = doc["currency_fn"] == 1;
 
     if (doc.containsKey("show_media")) config.show_media = doc["show_media"] == 1;
+
+    if (doc.containsKey("show_bambu")) config.show_bambu = doc["show_bambu"] == 1;
+    if (doc.containsKey("bambu_ip")) config.bambu_ip = doc["bambu_ip"].as<String>();
+    if (doc.containsKey("bambu_sn")) config.bambu_sn = doc["bambu_sn"].as<String>();
+    if (doc.containsKey("bambu_code")) config.bambu_code = doc["bambu_code"].as<String>();
     
     if (doc.containsKey("hide_empty_pc")) config.hide_empty_pc = doc["hide_empty_pc"] == 1;
     if (doc.containsKey("hide_empty_media")) config.hide_empty_media = doc["hide_empty_media"] == 1;
+    if (doc.containsKey("hide_empty_bambu")) config.hide_empty_bambu = doc["hide_empty_bambu"] == 1;
 
     if (doc.containsKey("screen_order")) {
         String orderStr = doc["screen_order"].as<String>();

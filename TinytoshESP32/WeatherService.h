@@ -15,7 +15,7 @@ public:
     bool isWeatherValid(const WeatherData& data);
 
 private:
-    const char* WEATHER_API_BASE = "https://api.open-meteo.com/v1/forecast";
+    static constexpr const char* WEATHER_API_BASE = "https://api.open-meteo.com/v1/forecast";
 };
 
 #endif

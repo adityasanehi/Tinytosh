@@ -332,7 +332,8 @@ fn main() {
                         if let Ok(players) = source.list_players().await {
                             for player_name in players {
                                 if let Ok(info) = source.get_player(&player_name).await {
-                                    let has_title = info.current_track.as_ref().map_or(false, |t| !t.title.trim().is_empty());
+                                    let title = info.current_track.as_ref().map(|t| t.title.trim().to_string()).unwrap_or_default();
+                                    let has_title = !title.is_empty() && title.to_lowercase() != "unknown";
                                     if !has_title { continue; }
                                     
                                     let status = format!("{:?}", info.playback_state).to_lowercase();
@@ -360,9 +361,20 @@ fn main() {
                                     MediaEvent::TrackChanged { player_name, .. } | MediaEvent::StateChanged { player_name, .. } => {
                                         if let Ok(info) = source.get_player(&player_name).await {
                                             let status = format!("{:?}", info.playback_state).to_lowercase();
-                                            let has_title = info.current_track.as_ref().map_or(false, |t| !t.title.trim().is_empty());
+                                            let title = info.current_track.as_ref().map(|t| t.title.trim().to_string()).unwrap_or_default();
+                                            let has_title = !title.is_empty() && title.to_lowercase() != "unknown";
 
-                                            if has_title {
+                                            if status == "stopped" || (!has_title && current_player.as_ref() == Some(&player_name)) {
+                                                if current_player.as_ref() == Some(&player_name) {
+                                                    current_player = None;
+                                                    let state = app_handle_media.state::<AppState>();
+                                                    let mut m = state.media_info.lock().unwrap();
+                                                    m.media_status = "stopped".to_string();
+                                                    m.media_name = String::new();
+                                                    m.media_author = String::new();
+                                                    m.media_album = String::new();
+                                                }
+                                            } else if has_title {
                                                 let is_stealing_focus = status == "playing";
                                                 let is_current = current_player.as_ref() == Some(&player_name);
 
@@ -377,14 +389,6 @@ fn main() {
                                                         m.media_album = any_ascii(&track.album.unwrap_or_default());
                                                     }
                                                 }
-                                            } else if status == "stopped" && current_player.as_ref() == Some(&player_name) {
-                                                current_player = None;
-                                                let state = app_handle_media.state::<AppState>();
-                                                let mut m = state.media_info.lock().unwrap();
-                                                m.media_status = "stopped".to_string();
-                                                m.media_name = String::new();
-                                                m.media_author = String::new();
-                                                m.media_album = String::new();
                                             }
                                         }
                                     },
@@ -407,7 +411,8 @@ fn main() {
                                         for p_name in players {
                                             if let Ok(info) = source.get_player(&p_name).await {
                                                 let status = format!("{:?}", info.playback_state).to_lowercase();
-                                                let has_title = info.current_track.as_ref().map_or(false, |t| !t.title.trim().is_empty());
+                                                let title = info.current_track.as_ref().map(|t| t.title.trim().to_string()).unwrap_or_default();
+                                                let has_title = !title.is_empty() && title.to_lowercase() != "unknown";
                                                 
                                                 if has_title && (status == "playing" || status == "paused") {
                                                     current_player = Some(p_name.clone());

@@ -32,13 +32,14 @@
 * 💱 **Currency Tracker:** Track exchange rates for over 150 fiat currency pairs with custom scaling multipliers.
 * 🖥️ **PC Hardware Monitor:** Connects via **USB** or **Wirelessly** to your Windows/Mac/Linux computer to show CPU Load, RAM Usage, and Network Speeds in real-time!
 * 🎧 **PC Media:** Displays currently playing track, artist, album, and playback status streamed directly from your connected computer.
+* 🖨️ **Bambu 3D Printer:** Local network telemetry for your Bambu Lab printer (progress, temperatures, fans, and print status) featuring smart layouts for IDLE and PRINTING modes.
 
 ### ✨ Key Features
 * **Modular Dashboard:** Enable/Disable screens on the fly via a Web Panel or PC App. 
 * **Drag & Drop Reordering:** Fully customize your display sequence. Grab and drag screens to change their order. The configuration UI dynamically rearranges itself to match your custom layout perfectly.
 * **Touch Button Controls:** Supports an optional TTP223 touch sensor. Tap to instantly skip screens (or wake the display), and **Long Press** to lock/unlock auto-rotation to keep your favorite screen visible indefinitely.
 * **Smart Auto-Hide:** PC Monitor and PC Media screens can intelligently hide themselves and skip rotation when your PC is off, disconnected, or no media is playing.
-* **Night Mode & Power Saving:** Set a quiet schedule to minimize sleep distractions. Choose between *Dim Display* or *Turn Display Off*. Features "Smart Latching" (waits for the primary screen before sleeping), 10x slower background API fetching to save power, and a temporary 30-second wake feature via the physical button.
+* **Night Mode & Power Saving:** Set a quiet schedule to minimize sleep distractions. Choose between *Dim Display*, *Turn Display Off*, or *Dim then Turn Off* (featuring an extra time picker for gradual dimming). Features "Smart Latching" (waits for the primary screen before sleeping), 10x slower background API fetching to save power, and a temporary 30-second wake feature via the physical button.
 * **Zero Config APIs:** Uses free public APIs for Stocks, Crypto, Currency, Weather, and Air Quality. No API keys required.
 * **Privacy First:** No accounts, no cloud tracking. Everything runs locally on the ESP32.
 
@@ -102,11 +103,13 @@ lib_deps =
 | **Adafruit SSD1306** | *Adafruit* | Driver for the OLED screen |
 | **Adafruit GFX Library** | *Adafruit* | Core graphics and text support |
 | **OneButton** | *Matthias Hertel* | Touch button handling and long presses |
+| **PubSubClient** | *Nick O'Leary* | MQTT client for Bambu Lab printer telemetry |
 
 > ⚠️ **Important:** When installing `Adafruit SSD1306`, the IDE may ask if you want to install dependencies like **"Adafruit BusIO"**. Click **"Install All"** to ensure the screen works correctly.
 
 **Note on Built-in Libraries:** The following libraries are required but **do not** need to be installed separately. They are included in the ESP32 Board Package:
 * `WiFi.h` & `WiFiServer.h`
+* `WiFiClientSecure.h`
 * `HTTPClient.h`
 * `Preferences.h`
 * `Wire.h` (I2C)
@@ -176,6 +179,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 | Version | Date | Key Changes |
 | :--- | :--- | :--- |
+| **v1.0.6** | *May 2026* | 🖨️ Added **Bambu 3D Printer** screen (auto-discovery, MQTT telemetry, smart Idle/Active layouts). 🌙 Enhanced **Night Mode** with "Dim then Turn Off" scheduling. |
 | **v1.0.5** | *Apr 2026* | 🎧 Added **PC Media** screen (Track, Artist, Album, Status). 👆 Added **Touch Button Controls** (Long press to lock/unlock auto-rotation). 👻 Added **Auto-hide** toggles to completely skip empty PC Monitor and Media screens. 🌐 Added local mDNS domain access (e.g., `tinytosh-XXXX.local`). |
 | **v1.0.4** | *Mar 2026* | 🖥️ **PC App Upgrade:** Added **Wireless Telemetry via Wi-Fi (mDNS)**, **Dynamic UI Rendering** that mirrors Web Panel functionality (update device settings and monitor current API data), and **Smart Connection Fallback** (instant USB-to-WiFi switching). <br>⚙️ **Firmware:** Added Universal Config Sync (saving settings via PC app), Smart IP Reporting via Serial, and Hardware Pairing Locks. |
 | **v1.0.3** | *Mar 2026* | 🌙 Added **Night Mode** with smart latching, screen dimming/off scheduling, and 10x background API power saving. 🔄 Introduced **Drag & Drop Reordering** for dynamic screen sequencing directly in the Web Panel. |

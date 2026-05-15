@@ -12,6 +12,7 @@ enum ScreenType {
   SCREEN_CURRENCY,
   SCREEN_PC_MONITOR,
   SCREEN_PC_MEDIA,
+  SCREEN_BAMBU,
   NUM_SCREENS
 };
 
@@ -23,7 +24,8 @@ inline constexpr const char* SCREEN_NAMES[] = {
   "Crypto Tracking",
   "Currency Exchange",
   "PC Monitor",
-  "PC Media"
+  "PC Media",
+  "Printer Info"
 };
 
 enum AnimType {
@@ -55,7 +57,7 @@ struct Config {
   // Screens Settings
   bool screen_auto_cycle = true;
   int screen_interval_sec = 15;
-  int screen_order[NUM_SCREENS] = {0, 1, 2, 3, 4, 5, 6, 7};
+  int screen_order[NUM_SCREENS] = {0, 1, 2, 3, 4, 5, 6, 7, 8};
 
   bool show_time = true;
   bool show_weather = true;
@@ -65,9 +67,11 @@ struct Config {
   bool show_currency = true;
   bool show_pc = true;
   bool show_media = true;
+  bool show_bambu = true;
 
-  bool hide_empty_pc = false;
-  bool hide_empty_media = false;
+  bool hide_empty_pc = true;
+  bool hide_empty_media = true;
+  bool hide_empty_bambu = true;
 
   // Weather & AQI Settings
   bool round_temps = true; 
@@ -84,14 +88,20 @@ struct Config {
   bool currency_fn = true;
   bool stock_fn = true;
 
+  // Printer Settings
+  String bambu_ip = "";
+  String bambu_sn = "";
+  String bambu_code = "";
+
   // Animation Settings
   uint16_t anim_mask = 62;
 
   // Night Mode Settings
   bool night_mode = false;
-  String night_start = "22:00";
+  String night_start = "23:00";
   String night_end = "06:00";
-  int night_action = 1; // 0: None, 1: Dim, 2: Off
+  String night_dim_start = "22:00";
+  int night_action = 1; // 0: None, 1: Dim, 2: Off, 3: Dim + Off
 };
 
 struct WeatherData {
@@ -143,6 +153,7 @@ struct PcStats {
   float disk_percent;
   float net_down_kb;
   unsigned long last_update = 0;
+  bool is_wifi = false;
 };
 
 struct PcMedia {
@@ -151,6 +162,21 @@ struct PcMedia {
   String author;
   String album;
   unsigned long last_update = 0;
+};
+
+struct BambuData {
+  String status = "SYNCING";
+  int progress = 0;
+  int time_left = 0;
+  float nozzle_temp = 0.0;
+  float nozzle_target = 0.0;
+  float bed_temp = 0.0;
+  float bed_target = 0.0;
+  int layer = 0;
+  int total_layers = 0;
+  String file_name = "None";
+  int fan_part = 0;
+  int fan_aux = 0;
 };
 
 struct StockOption {
@@ -314,5 +340,6 @@ struct AppState {
   StockData stock;
   PcStats pc;
   PcMedia media;
+  BambuData bambu;
 };
 #endif

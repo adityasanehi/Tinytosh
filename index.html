@@ -24,15 +24,16 @@
 
                 <div class="info-box flex-row" style="margin-top: 25px; align-items: flex-start; flex-direction: column;">
                     <h3 style="margin: 0 0 10px 0; color: var(--accent);">Available Screens & Services</h3>
-                    <ul style="margin: 0; padding-left: 20px; color: var(--text-muted); font-size: 0.95rem; line-height: 1.8;">
-                        <li>🕒 <strong>Internet Clock:</strong> Auto-syncs time and date based on your location.</li>
-                        <li>🌤️ <strong>Weather Station:</strong> Live Temperature, Humidity, and Forecasts (via Open-Meteo).</li>
-                        <li>🍃 <strong>Air Quality:</strong> Monitor local AQI levels (US & EU Standards).</li>
-                        <li>📊 <strong>Stock Tracker:</strong> Track market data for ~100 top global assets, ETFs, and Mega-Cap Tech with daily trend indicators.</li>
-                        <li>📈 <strong>Crypto Tracker:</strong> Watch your favorite coin (from top 75 global cryptos) with price and trend indicators.</li>
-                        <li>💱 <strong>Currency Tracker:</strong> Track exchange rates for over 150 fiat currency pairs with custom scaling multipliers.</li>
-                        <li>🖥️ <strong>PC Hardware Monitor:</strong> Connects via USB or Wirelessly to your Windows/Mac/Linux computer to show CPU Load, RAM Usage, and Network Speeds in real-time!</li>
-                        <li>🎧 <strong>PC Media:</strong> Displays currently playing track, artist, album, and playback status from your connected computer.</li>
+                    <ul class="screens-list">
+                        <li>🕒 <a href="#screen-clock"><strong>Internet Clock:</strong></a> Auto-syncs time and date based on your location.</li>
+                        <li>🌤️ <a href="#screen-weather"><strong>Weather Station:</strong></a> Live Temperature, Humidity, and Forecasts (via Open-Meteo).</li>
+                        <li>🍃 <a href="#screen-aqi"><strong>Air Quality:</strong></a> Monitor local AQI levels (US & EU Standards).</li>
+                        <li>📊 <a href="#screen-stock"><strong>Stock Tracker:</strong></a> Track market data for ~100 top global assets, ETFs, and Mega-Cap Tech with daily trend indicators.</li>
+                        <li>📈 <a href="#screen-crypto"><strong>Crypto Tracker:</strong></a> Watch your favorite coin (from top 75 global cryptos) with price and trend indicators.</li>
+                        <li>💱 <a href="#screen-currency"><strong>Currency Tracker:</strong></a> Track exchange rates for over 150 fiat currency pairs with custom scaling multipliers.</li>
+                        <li>🖥️ <a href="#screen-pc"><strong>PC Hardware Monitor:</strong></a> Connects via USB or Wirelessly to your Windows/Mac/Linux computer to show CPU Load, RAM Usage, and Network Speeds in real-time!</li>
+                        <li>🎵 <a href="#screen-media"><strong>PC Media:</strong></a> Displays currently playing track, artist, album, and playback status from your connected computer.</li>
+                        <li>🖨️ <a href="#screen-bambu"><strong>Bambu 3D Printer:</strong></a> Local network telemetry for your Bambu Lab printer (progress, temperatures, fans, and print status).</li>
                     </ul>
                 </div>
             </header>
@@ -249,7 +250,7 @@
 
                     <div class="note-box alert" style="margin-bottom: 20px;">
                         <strong>⚠️ Compilation Requirement</strong><br>
-                        The source code requires specific external libraries (<em>WiFiManager, ArduinoJson, Adafruit SSD1306, OneButton</em>) to compile successfully. 
+                        The source code requires specific external libraries (<em>WiFiManager, ArduinoJson, Adafruit SSD1306, Adafruit GFX Library, OneButton, PubSubClient</em>) to compile successfully. 
                         <br>
                         Please ensure you install all dependencies listed in the <strong>"Build & Compile Guide"</strong> section of the GitHub README.
                     </div>
@@ -407,7 +408,8 @@
                         <div class="feature-section-title">🌙 Night Mode & Power Saving</div>
                         <p>Set a quiet schedule to minimize sleep distractions and conserve API quotas.</p>
                         <ul>
-                            <li><strong>Action Modes:</strong> Choose what happens during the scheduled hours: <em>No Visual Change</em>, <em>Dim Display</em> (minimum hardware contrast), or <em>Turn Display Off</em> (completely black).</li>
+                            <li><strong>Action Modes:</strong> Choose what happens during the scheduled hours: <em>No Visual Change</em>, <em>Dim Display</em> (minimum hardware contrast), <em>Turn Display Off</em> (completely black), or <em>Dim then Turn Off</em> (gradually steps down).</li>
+                            <li><strong>Dim Start Time:</strong> If you select "Dim then Turn Off," an extra time picker will appear. This lets you set exactly when the screen dims before fully turning off later in the night.</li>
                             <li><strong>Smart Latching:</strong> Night Mode won't interrupt your reading. It waits patiently until the rotation naturally lands on your first (primary) screen before applying the dark settings and pausing the screen cycle.</li>
                             <li><strong>Background Optimization:</strong> Background data fetches (Weather, Crypto, etc.) automatically slow down 10x during Night Mode to save power.</li>
                             <li><strong>Temporary Wake:</strong> If the screen is Off, pressing the physical button will temporarily wake the device at minimum brightness for 30 seconds so you can check the time in the dark!</li>
@@ -434,12 +436,12 @@
                         </ul>
                     </div>
 
-                    <div class="feature-item">
+                    <div class="feature-item" id="screen-clock">
                         <div class="feature-header">🕒 Simple Clock</div>
+                        <div class="feature-section-title">Function</div>
+                        <p>Displays the current time and date, automatically synchronized via the internet based on your local timezone.</p>
                         <div class="feature-section-title">Settings</div>
-                        <p>
-                            While location and timezone are managed in <strong>Global Settings</strong>, this screen offers specific customization:
-                        </p>
+                        <p>While location and timezone are managed in <strong>Global Settings</strong>, this screen offers specific customization:</p>
                         <ul>
                             <li><strong>Date Toggle:</strong> Choose to display the full date or hide it for a cleaner look.</li>
                         </ul>
@@ -471,8 +473,10 @@
                         </details>
                     </div>
 
-                    <div class="feature-item">
+                    <div class="feature-item" id="screen-weather">
                         <div class="feature-header">🌤️ Weather Station</div>
+                        <div class="feature-section-title">Function</div>
+                        <p>Fetches and displays real-time weather conditions and daily forecasts based on your location.</p>
                         <div class="feature-section-title">Settings</div>
                         <ul>
                             <li><strong>Temperature Unit:</strong> Toggle between Celsius (°C) and Fahrenheit (°F).</li>
@@ -503,8 +507,10 @@
                         </details>
                     </div>
 
-                    <div class="feature-item">
+                    <div class="feature-item" id="screen-aqi">
                         <div class="feature-header">🍃 Air Quality</div>
+                        <div class="feature-section-title">Function</div>
+                        <p>Monitors local Air Quality Index (AQI) and specific pollutant levels to keep you informed about your environment.</p>
                         <div class="feature-section-title">Settings</div>
                         <p>Choose your preferred AQI standard (US or EU).</p>
                         <div class="info-box">
@@ -535,10 +541,11 @@
                         </details>
                     </div>
 
-                    <div class="feature-item">
+                    <div class="feature-item" id="screen-stock">
                         <div class="feature-header">📊 Stock Tracker</div>
+                        <div class="feature-section-title">Function</div>
+                        <p>Tracks live market data for ~100 top global assets, including US Mega-Cap Tech, broad market ETFs, and international ADRs.</p>
                         <div class="feature-section-title">Settings</div>
-                        <p>Track live market data for ~100 top global assets, including US Mega-Cap Tech, broad market ETFs, and international ADRs.</p>
                         <ul>
                             <li><strong>Asset Selection:</strong> Choose your preferred stock or ETF from the curated dropdown.</li>
                             <li><strong>Display Format:</strong> Toggle between showing the minimalist Ticker (e.g., AAPL) or the Full Company Name (e.g., Apple Inc.).</li>
@@ -568,11 +575,13 @@
                         </details>
                     </div>
 
-                    <div class="feature-item">
+                    <div class="feature-item" id="screen-crypto">
                         <div class="feature-header">📈 Crypto Tracker</div>
+                        <div class="feature-section-title">Function</div>
+                        <p>Tracks live market prices and 24-hour trends for the top 75 global cryptocurrencies.</p>
                         <div class="feature-section-title">Settings</div>
-                        <p>Select your preferred coin from the top 75 global cryptocurrencies to track live market data.</p>
                         <ul>
+                            <li><strong>Coin Selection:</strong> Select your preferred coin to track its live market data.</li>
                             <li><strong>Display Format:</strong> Toggle between the clean, standard Ticker (e.g., BTC) or displaying the Full Coin Name (e.g., Bitcoin).</li>
                         </ul>
                         <div class="feature-section-title">Layout</div>
@@ -600,10 +609,11 @@
                         </details>
                     </div>
 
-                    <div class="feature-item">
+                    <div class="feature-item" id="screen-currency">
                         <div class="feature-header">💱 Currency Tracker</div>
+                        <div class="feature-section-title">Function</div>
+                        <p>Tracks live exchange rates between over 150 global fiat currencies.</p>
                         <div class="feature-section-title">Settings</div>
-                        <p>Track live exchange rates between over 150 global fiat currencies.</p>
                         <ul>
                             <li><strong>Base & Target:</strong> Select your currency pair (e.g., USD to EUR).</li>
                             <li><strong>Multiplier Amount:</strong> Essential for viewing exchange rates with large differences. Instead of viewing the tiny fraction for 1 unit, you can track the rate for 10, 100, 1,000, or 10,000 units for better readability.</li>
@@ -634,7 +644,7 @@
                         </details>
                     </div>
 
-                    <div class="feature-item">
+                    <div class="feature-item" id="screen-pc">
                         <div class="feature-header">🖥️ PC Monitor</div>
                         <div class="feature-section-title">Function</div>
                         <p>Connects to the Tinytosh PC software on your computer to stream hardware telemetry via USB or Wirelessly.</p>
@@ -667,7 +677,7 @@
                         </details>
                     </div>
                     
-                    <div class="feature-item">
+                    <div class="feature-item" id="screen-media">
                         <div class="feature-header">🎵 PC Media</div>
                         <div class="feature-section-title">Function</div>
                         <p>Streams current media playback info from your PC via the Tinytosh PC software (Spotify, Browsers, Apple Music, etc.).</p>
@@ -692,6 +702,58 @@
                                     <div class="assembly-item">
                                         <div class="assembly-img-wrapper">
                                             <img src="img/real_media.jpg" alt="Media Real Photo" class="real-photo">
+                                        </div>
+                                        <div class="assembly-caption">Real Photo</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+
+                    <div class="feature-item" id="screen-bambu">
+                        <div class="feature-header">🖨️ BambuLab 3D Printer</div>
+                        <div class="feature-section-title">Function</div>
+                        <p>Connects directly to your BambuLab 3D printer over your local network to stream live printing telemetry.</p>
+                        <div class="feature-section-title">Settings</div>
+                        <ul>
+                            <li><strong>Required Credentials:</strong> You will need your printer's <strong>Serial Number</strong> and <strong>Access Code</strong>. You can easily find these on your printer's physical screen under <em>Settings > Network (or WLAN)</em>.</li>
+                            <li><strong>Printer IP Address:</strong> This field is optional. Tinytosh features an auto-discovery scanner that will actively hunt for your printer on the network. If your router assigns a new IP to your printer every restart, simply leave this blank!</li>
+                            <li><strong>Connection Time:</strong> After entering your settings, please allow up to a minute for Tinytosh to negotiate the secure connection. The data will start populating on the Web Panel and your OLED display once connected.</li>
+                            <li><strong>Auto-hide:</strong> Choose to automatically hide this screen from your rotation when the printer is offline or disconnected.</li>
+                        </ul>
+                        <div class="feature-section-title">Layout</div>
+                        <p>This module dynamically changes its screen layout based on what the printer is doing:</p>
+                        <ul>
+                            <li><strong>Idle Mode:</strong> When the printer is resting, displaying a cluttered screen full of zeros makes no sense. The UI shifts to a minimalist layout showing just a large printer icon, the "Idle" status, and the current bed and nozzle temperatures.</li>
+                            <li><strong>Printing Mode:</strong> When a print starts, the UI expands into a dense telemetry dashboard showing: Print Progress (%), Time Left (mins), Current vs Total Layers, the File Name, Target & Actual Temperatures for Bed/Nozzle, and Part/Auxiliary Fan speeds (%).</li>
+                        </ul>
+                        <span class="api-tag">Source: BambuLab Printer (MQTT)</span>
+
+                        <details>
+                            <summary>📸 View Screen Previews</summary>
+                            <div class="assembly-container">
+                                <div class="assembly-grid">
+                                    <div class="assembly-item">
+                                        <div class="assembly-img-wrapper">
+                                            <img src="img/render_bambu_idle.png" alt="Bambu Idle Layout Render">
+                                        </div>
+                                        <div class="assembly-caption">Layout Render</div>
+                                    </div>
+                                    <div class="assembly-item">
+                                        <div class="assembly-img-wrapper">
+                                            <img src="img/real_bambu_idle.jpg" alt="Bambu Idle Real Photo" class="real-photo">
+                                        </div>
+                                        <div class="assembly-caption">Real Photo</div>
+                                    </div>
+                                    <div class="assembly-item">
+                                        <div class="assembly-img-wrapper">
+                                            <img src="img/render_bambu_active.png" alt="Bambu Active Layout Render">
+                                        </div>
+                                        <div class="assembly-caption">Layout Render</div>
+                                    </div>
+                                    <div class="assembly-item">
+                                        <div class="assembly-img-wrapper">
+                                            <img src="img/real_bambu_active.jpg" alt="Bambu Active Real Photo" class="real-photo">
                                         </div>
                                         <div class="assembly-caption">Real Photo</div>
                                     </div>

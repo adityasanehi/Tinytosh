@@ -14,6 +14,7 @@
 #include "CurrencyService.h"
 #include "StockService.h"
 #include "PcMonitorService.h"
+#include "BambuService.h"
 
 // Global Constants
 const char* AP_SSID = "Tinytosh";
@@ -49,6 +50,7 @@ CryptoService cryptoService;
 CurrencyService currencyService;
 StockService stockService;
 PcMonitorService pcMonitorService;
+BambuService bambuService;
 
 unsigned long lastScreenSwitch = 0;
 int currentScreen = 0;
@@ -110,33 +112,44 @@ int getFirstEnabledScreen() {
   return appState.config.screen_order[0];
 }
 
-bool isNightModeActive() {
-  if (!appState.config.night_mode) return false;
-
-  struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) return false;
-
-  int currentMins = timeinfo.tm_hour * 60 + timeinfo.tm_min;
-
-  int startH = appState.config.night_start.substring(0, 2).toInt();
-  int startM = appState.config.night_start.substring(3, 5).toInt();
+bool isTimeInWindow(int currentMins, String startStr, String endStr) {
+  int startH = startStr.substring(0, 2).toInt();
+  int startM = startStr.substring(3, 5).toInt();
   int startMins = startH * 60 + startM;
 
-  int endH = appState.config.night_end.substring(0, 2).toInt();
-  int endM = appState.config.night_end.substring(3, 5).toInt();
+  int endH = endStr.substring(0, 2).toInt();
+  int endM = endStr.substring(3, 5).toInt();
   int endMins = endH * 60 + endM;
 
-  if (startMins < endMins) {
-    return (currentMins >= startMins && currentMins < endMins);
-  } else { 
-    return (currentMins >= startMins || currentMins < endMins);
+  if (startMins < endMins) return (currentMins >= startMins && currentMins < endMins);
+  else return (currentMins >= startMins || currentMins < endMins);
+}
+
+int getActiveNightAction() {
+  if (!appState.config.night_mode) return -1;
+
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) return -1;
+  int currentMins = timeinfo.tm_hour * 60 + timeinfo.tm_min;
+
+  if (appState.config.night_action == 3) {
+    if (isTimeInWindow(currentMins, appState.config.night_start, appState.config.night_end)) return 2; // In the OFF window
+    if (isTimeInWindow(currentMins, appState.config.night_dim_start, appState.config.night_end)) return 1; // In the DIM window
+    return -1;
   }
+
+  if (isTimeInWindow(currentMins, appState.config.night_start, appState.config.night_end)) {
+    return appState.config.night_action;
+  }
+  
+  return -1;
 }
 
 // Core Application Logic
 
 void handleSingleClick() {
-  bool wasScreenOff = (nightModeLatched && appState.config.night_action == 2 && (millis() - lastInteractionTime >= NIGHT_WAKE_DURATION_MS));
+  int activeAction = getActiveNightAction();
+  bool wasScreenOff = (nightModeLatched && activeAction == 2 && (millis() - lastInteractionTime >= NIGHT_WAKE_DURATION_MS));
 
   if (wasScreenOff) {
     Serial.println("🌙 Night Mode: Waking display temporarily on Primary Screen.");
@@ -148,7 +161,7 @@ void handleSingleClick() {
     Serial.println("👆 Button Pressed: Switching Screen");
     if (nightModeLatched) {
       displayService.display.ssd1306_command(SSD1306_SETCONTRAST);
-      displayService.display.ssd1306_command((appState.config.night_action == 0) ? CONTRAST_MAX : CONTRAST_DIM);
+      displayService.display.ssd1306_command((activeAction == 0) ? CONTRAST_MAX : CONTRAST_DIM);
     }
     switchToNextScreen();
   }
@@ -260,12 +273,15 @@ void setup() {
   delay(3000);
 
   // 2. Load Configuration
-  displayService.showOLEDStatus({"Starting...", "Loading Config..."}, true);
+  displayService.showOLEDStatus({"\n", "\n", "Starting...", "\n", "\n", "Loading Config..."}, true);
   configManager.loadConfig(appState.config); 
+  bambuService.begin(&appState.config, &appState.bambu);
 
   // 3. Connect WiFi and set device info
   WiFiManager wm;
-  // wm.resetSettings(); 
+  wm.setConnectTimeout(15);
+  wm.setConnectRetries(3);
+  // wm.resetSettings();
   wm.setAPCallback([](WiFiManager* m) {
     displayService.showOLEDStatus({"\n", "WiFi not connected", "\n", "Connect to WiFi:", AP_SSID, "\n", "Password:", AP_PASS}, true);
   });
@@ -309,6 +325,7 @@ void setup() {
 
 void loop() {
   webServerService.handleClient();
+  bambuService.loop();
   button.tick();
 
   if (pcMonitorService.handleSerial(appState)) {
@@ -318,14 +335,16 @@ void loop() {
   }
 
   // 1. Night Latch Logic
-  bool nightScheduleActive = isNightModeActive();
+  int activeAction = getActiveNightAction();
+  bool nightScheduleActive = (activeAction != -1);
 
   if (!nightScheduleActive) {
     if (nightModeLatched) {
       Serial.println("☀️ Morning reached: Exiting Night Mode and resuming normal operation.");
       nightModeLatched = false;
       
-      if (appState.config.night_action == 2) {
+      // If we are exiting mode 2 or 3 (display was off), reset to the main screen
+      if (appState.config.night_action >= 2) {
         currentScreen = getFirstEnabledScreen();
       }
       
@@ -337,7 +356,7 @@ void loop() {
       Serial.println("🌙 Night Mode Latched: Reached the primary screen. Applying night settings.");
       nightModeLatched = true;
       lastScreenUpdate = 0; 
-      lastInteractionTime = millis() - NIGHT_WAKE_DURATION_MS; 
+      lastInteractionTime = millis() - NIGHT_WAKE_DURATION_MS;
     }
   }
 
@@ -369,7 +388,7 @@ void loop() {
 
   // 4. Screen Redraw & Visual Action Logic
   static bool screenClearedForNight = false;
-  bool isScreenOffAction = (nightModeLatched && appState.config.night_action == 2);
+  bool isScreenOffAction = (nightModeLatched && activeAction == 2);
   bool isTemporarilyAwake = isScreenOffAction && (millis() - lastInteractionTime < NIGHT_WAKE_DURATION_MS);
   bool shouldDrawScreen = !isScreenOffAction || isTemporarilyAwake;
 
@@ -388,16 +407,16 @@ void loop() {
     
     unsigned long refreshInterval = NORMAL_REFRESH_MS;
     if (nightModeLatched) {
-      refreshInterval = (appState.config.night_action == 2) ? NIGHT_DISPLAY_OFF_REFRESH_MS : NIGHT_DIM_REFRESH_MS;
+      refreshInterval = (activeAction == 2) ? NIGHT_DISPLAY_OFF_REFRESH_MS : NIGHT_DIM_REFRESH_MS;
     }
 
     if (millis() - lastScreenUpdate >= refreshInterval || lastScreenUpdate == 0) { 
         
       if (nightModeLatched) {
-        if (appState.config.night_action == 1 || isTemporarilyAwake) {
+        if (activeAction == 1 || isTemporarilyAwake) {
           displayService.display.ssd1306_command(SSD1306_SETCONTRAST);
           displayService.display.ssd1306_command(CONTRAST_DIM); 
-        } else {
+        } else if (activeAction == 0) {
           displayService.display.ssd1306_command(SSD1306_SETCONTRAST);
           displayService.display.ssd1306_command(CONTRAST_MAX);
         }

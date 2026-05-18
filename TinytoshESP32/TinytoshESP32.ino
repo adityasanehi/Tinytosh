@@ -6,6 +6,7 @@
 #include "images.h"
 #include "ConfigManager.h"
 #include "TimeService.h"
+#include "CalendarService.h"
 #include "WeatherService.h"
 #include "AirQualityService.h"
 #include "DisplayService.h"
@@ -42,6 +43,7 @@ void updateAllDataCallback();
 // Service Instances
 ConfigManager configManager(PREF_NAMESPACE);
 TimeService timeService;
+CalendarService calendarService;
 WeatherService weatherService;
 AirQualityService airQualityService;
 DisplayService displayService(128, 64, -1);
@@ -208,32 +210,38 @@ void updateAllData() {
   displayService.showOLEDStatus({"\n", "\n", "Syncing Time...", "\n", "Timezone:", appState.config.timezone}, true);
   timeService.syncNTP(appState.config.timezone);
 
-  // 3. Fetch Weather (Depends on Lat/Lon)
+  // 3. Fetch Calendar (Holidays - Depends on Country (Country Code))
+  if (appState.config.show_calendar && appState.config.calendar_show_holidays && !appState.calendar.updated) {  
+    displayService.showOLEDStatus({"\n", "\n", "Updating Calendar...", "\n", "Country:", appState.config.country}, true);
+    calendarService.fetchHolidays(appState.config.country_code, appState.calendar);
+  }
+
+  // 4. Fetch Weather (Depends on Lat/Lon)
   if (appState.config.show_weather) {  
     displayService.showOLEDStatus({"\n", "\n", "Updating Weather...", "\n", "Location:", appState.config.city}, true);
     String updateTime = timeService.getCurrentTime(appState.config.time_format);
     weatherService.fetchWeather(appState.config, appState.weather, updateTime);
   }
 
-  // 4. Fetch Air Quality (Depends on Lat/Lon)
+  // 5. Fetch Air Quality (Depends on Lat/Lon)
   if (appState.config.show_aqi) {  
     displayService.showOLEDStatus({"\n", "\n", "Updating AQI...", "\n", "Location:", appState.config.city}, true);
     airQualityService.fetchAirQuality(appState.config, appState.aqi);
   }
 
-  // 5. Fetch Stocks (Independent)
+  // 6. Fetch Stocks (Independent)
   if (appState.config.show_stock) {
     displayService.showOLEDStatus({"\n", "\n", "Updating Stocks...", "\n", "Stock:", appState.config.stock_symbol}, true);
     stockService.fetchStock(appState.config.stock_symbol, appState.stock);
   }
 
-  // 6. Fetch Crypto (Independent)
+  // 7. Fetch Crypto (Independent)
   if (appState.config.show_crypto) { 
     displayService.showOLEDStatus({"\n", "\n", "Updating Crypto...", "\n", "Ticker ID:", String(appState.config.crypto_id)}, true);
     cryptoService.fetchPrice(appState.config.crypto_id, appState.crypto);
   }
 
-  // 7. Fetch Currency (Independent)
+  // 8. Fetch Currency (Independent)
   if (appState.config.show_currency) { 
     String baseUpper = String(appState.config.currency_base);
     baseUpper.toUpperCase();
@@ -244,10 +252,10 @@ void updateAllData() {
     currencyService.fetchRate(String(appState.config.currency_base), String(appState.config.currency_target), appState.currency);
   }
 
-  // 8. Save Everything
+  // 9. Save Everything
   configManager.saveConfig(appState.config);
 
-  // 9. Find the first enabled screen to show immediately
+  // 10. Find the first enabled screen to show immediately
   currentScreen = getFirstEnabledScreen();
   lastScreenSwitch = millis();
 }
@@ -373,6 +381,7 @@ void loop() {
     if (appState.config.show_crypto) cryptoService.fetchPrice(appState.config.crypto_id, appState.crypto);
     if (appState.config.show_currency) currencyService.fetchRate(appState.config.currency_base, appState.config.currency_target, appState.currency);
     if (appState.config.show_stock) stockService.fetchStock(appState.config.stock_symbol, appState.stock);
+    if (appState.config.show_calendar && appState.config.calendar_show_holidays && !appState.calendar.updated) calendarService.fetchHolidays(appState.config.country_code, appState.calendar);
     
     lastDataUpdate = millis();
   }

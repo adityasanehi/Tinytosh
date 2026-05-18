@@ -15,6 +15,7 @@ public:
     
     void showOLEDStatus(std::initializer_list<String> lines, bool clear = true);
     void drawTimeScreen(const Config& config, String timeStr, String dateStr);
+    void drawCalendarScreen(const Config& config, const CalendarData& calendar);
     void drawWeatherScreen(const Config& config, const WeatherData& data, const String& currentTime);
     void drawAQIScreen(const Config& config, const AirQualityData& data, const String& currentTime);
     void drawCryptoScreen(const Config& config, const CryptoData& data);

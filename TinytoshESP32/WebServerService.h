@@ -18,8 +18,6 @@ public:
     void handleSave();
     void handleUpdate();
     void handlePcStats();
-
-    String generateRootPageContent();
     
 private:
     static const unsigned long PC_DATA_TIMEOUT_MS = 10000;

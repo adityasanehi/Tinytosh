@@ -15,7 +15,10 @@
 
       <div class="panel header-panel">
         <div id="time-display">--:--</div>
-        <h2 id="location-info">📍 -- (--)</h2>
+        <h2 id="location-info">📍 --, -- (--)</h2>
+        
+        <div id="greetings-text" class="greetings-text"></div>
+        
         <div class="identity-box">
           <div id="device-id-text" class="id-text">Loading...</div>
           <div id="device-ip-text" class="ip-text">TINYTOSH IP: --</div>
@@ -112,10 +115,13 @@
               <legend>Manual Location Entry</legend>
               <label>City Name:</label><input type="text" name="city">
               <div class="dashboard-grid mt-0">
-                <div><label>Latitude:</label><input type="number" step="any" name="latitude"></div>
-                <div><label>Longitude:</label><input type="number" step="any" name="longitude"></div>
+                <div><label class="mt-0">Latitude:</label><input type="number" step="any" name="latitude"></div>
+                <div><label class="mt-0">Longitude:</label><input type="number" step="any" name="longitude"></div>
               </div>
-              <label>Timezone:</label><select name="timezone" id="tz-select"><option value="UTC">UTC</option></select>
+              <div class="dashboard-grid mt-0">
+                <div><label class="mt-0">Country:</label><select name="country_code"></select></div>
+                <div><label class="mt-0">Timezone:</label><select name="timezone" id="tz-select"><option value="UTC">UTC</option></select></div>
+              </div>
             </fieldset>
 
             <hr>
@@ -147,15 +153,16 @@
             <h3 class="panel-title">Screen Display Order</h3>
             <p class="help-text order-help">Drag and drop to rearrange. Disabled screens are locked at the bottom.</p>
             <ul id="sortable-list" class="sortable-list">
-              <li class="sortable-item" data-id="0" data-target="showTime" draggable="true"><span class="drag-handle">☰</span>Time</li>
-              <li class="sortable-item" data-id="1" data-target="showWeather" draggable="true"><span class="drag-handle">☰</span>Weather</li>
-              <li class="sortable-item" data-id="2" data-target="showAQI" draggable="true"><span class="drag-handle">☰</span>Air Quality</li>
-              <li class="sortable-item" data-id="3" data-target="showCrypto" draggable="true"><span class="drag-handle">☰</span>Crypto</li>
-              <li class="sortable-item" data-id="4" data-target="showCurrency" draggable="true"><span class="drag-handle">☰</span>Currency</li>
-              <li class="sortable-item" data-id="5" data-target="showStock" draggable="true"><span class="drag-handle">☰</span>Stock Tracking</li>
-              <li class="sortable-item" data-id="6" data-target="showPc" draggable="true"><span class="drag-handle">☰</span>PC Monitor</li>
-              <li class="sortable-item" data-id="7" data-target="showMedia" draggable="true"><span class="drag-handle">☰</span>PC Media</li>
-              <li class="sortable-item" data-id="8" data-target="showBambu" draggable="true"><span class="drag-handle">☰</span>Printer Info</li>
+              <li class="sortable-item" data-id="0" data-target="showTime" draggable="true"><span class="drag-handle">☰</span>Time & Date</li>
+              <li class="sortable-item" data-id="1" data-target="showCalendar" draggable="true"><span class="drag-handle">☰</span>Calendar</li>
+              <li class="sortable-item" data-id="2" data-target="showWeather" draggable="true"><span class="drag-handle">☰</span>Weather</li>
+              <li class="sortable-item" data-id="3" data-target="showAQI" draggable="true"><span class="drag-handle">☰</span>Air Quality</li>
+              <li class="sortable-item" data-id="4" data-target="showStock" draggable="true"><span class="drag-handle">☰</span>Stock Tracking</li>
+              <li class="sortable-item" data-id="5" data-target="showCrypto" draggable="true"><span class="drag-handle">☰</span>Crypto Tracking</li>
+              <li class="sortable-item" data-id="6" data-target="showCurrency" draggable="true"><span class="drag-handle">☰</span>Currency Exchange</li>
+              <li class="sortable-item" data-id="7" data-target="showPc" draggable="true"><span class="drag-handle">☰</span>PC Monitor</li>
+              <li class="sortable-item" data-id="8" data-target="showMedia" draggable="true"><span class="drag-handle">☰</span>PC Media</li>
+              <li class="sortable-item" data-id="9" data-target="showBambu" draggable="true"><span class="drag-handle">☰</span>Printer Info</li>
             </ul>
             <input type="hidden" name="screen_order" id="screenOrderInput">
           </div>
@@ -166,13 +173,30 @@
               <div id="timeContent" class="collapsible">
                 <div class="dashboard-grid">
                   <div class="tile"><div class="tile-icon">🕒</div><div class="tile-value" id="preview-time">--:--</div><div class="tile-label">Current Time</div></div>
-                  <div class="tile"><div class="tile-icon">📅</div><div class="tile-value date-val" id="preview-date">--</div><div class="tile-label">Current Date</div></div>
+                  <div class="tile"><div class="tile-icon">🌐</div><div class="tile-value" id="preview-tz" style="font-size:1.2rem">--</div><div class="tile-label">Timezone</div></div>
                 </div>
-                <label class="checkbox-label"><input type="checkbox" name="date_display"> Display Date</label>
+                <label class="checkbox-label"><input type="checkbox" name="date_display"> Display Date Below Time</label>
               </div>
             </div>
 
             <div class="panel" id="panel-1">
+              <label class="checkbox-label mt-0"><input type="checkbox" id="showCalendar" name="show_calendar"> Calendar Screen</label>
+              <div id="calendarContent" class="collapsible">
+                <div class="dashboard-grid">
+                  <div class="tile"><div class="tile-icon">📅</div><div class="tile-value date-val" id="preview-date">--</div><div class="tile-label">Current Date</div></div>
+                  <div class="tile"><div class="tile-icon">🎉</div><div class="tile-value" id="preview-hol" style="font-size:1.2rem">--</div><div class="tile-label">Holidays Loaded</div></div>
+                </div>
+                <label>Start Week On:</label>
+                <div class="radio-group">
+                  <label class="radio-label"><input type="radio" name="cal_start" value="mon"> Monday</label>
+                  <label class="radio-label"><input type="radio" name="cal_start" value="sun"> Sunday</label>
+                </div>
+                <label class="checkbox-label"><input type="checkbox" name="cal_hol"> Show National Holidays</label>
+                <label class="checkbox-label"><input type="checkbox" name="cal_min"> Minimalistic Mode (Hide grid)</label>
+              </div>
+            </div>
+
+            <div class="panel" id="panel-2">
               <label class="checkbox-label mt-0"><input type="checkbox" id="showWeather" name="show_weather"> Weather Screen</label>
               <div id="weatherContent" class="collapsible">
                 <div id="weather-no-data" class="no-data-tile">☁️ Weather data will be available after sync</div>
@@ -194,7 +218,7 @@
               </div>
             </div>
 
-            <div class="panel" id="panel-2">
+            <div class="panel" id="panel-3">
               <label class="checkbox-label mt-0"><input type="checkbox" id="showAQI" name="show_aqi"> Air Quality Screen</label>
               <div id="aqiContent" class="collapsible">
                 <div id="aqi-no-data" class="no-data-tile">🍃 Air quality data will be available after sync</div>
@@ -216,7 +240,24 @@
               </div>
             </div>
 
-            <div class="panel" id="panel-3">
+            <div class="panel" id="panel-4">
+              <label class="checkbox-label mt-0"><input type="checkbox" id="showStock" name="show_stock"> Stock Tracking Screen</label>
+              <div id="stockContent" class="collapsible">
+                <div id="stock-no-data" class="no-data-tile">📈 Stock data will be available after sync</div>
+                <div id="stock-grid" class="hidden">
+                    <div class="dashboard-grid">
+                      <div class="tile"><div class="tile-icon">📊</div><div class="tile-value" id="stock-price">--</div><div class="tile-label" id="stock-sym">Stock Price</div></div>
+                      <div class="tile"><div class="tile-icon" id="stock-trend-icon">-</div><div class="tile-value" id="stock-change">--%</div><div class="tile-label">Daily Change</div></div>
+                    </div>
+                    <div class="update-footer" id="stock-upd">Last Update: --</div>
+                </div>
+                <label>Track Stock/ETF:</label>
+                <select name="stock_symbol"></select>
+                <label class="checkbox-label"><input type="checkbox" name="stock_fn"> Display Full Company Name</label>
+              </div>
+            </div>
+
+            <div class="panel" id="panel-5">
               <label class="checkbox-label mt-0"><input type="checkbox" id="showCrypto" name="show_crypto"> Crypto Tracking Screen</label>
               <div id="cryptoContent" class="collapsible">
                 <div id="crypto-no-data" class="no-data-tile">💰 Crypto data will be available after sync</div>
@@ -233,7 +274,7 @@
               </div>
             </div>
 
-            <div class="panel" id="panel-4">
+            <div class="panel" id="panel-6">
               <label class="checkbox-label mt-0"><input type="checkbox" id="showCurrency" name="show_currency"> Currency Exchange Screen</label>
               <div id="currencyContent" class="collapsible">
                 <div id="currency-no-data" class="no-data-tile">💱 Currency data will be available after sync</div>
@@ -257,24 +298,7 @@
               </div>
             </div>
 
-            <div class="panel" id="panel-5">
-              <label class="checkbox-label mt-0"><input type="checkbox" id="showStock" name="show_stock"> Stock Tracking Screen</label>
-              <div id="stockContent" class="collapsible">
-                <div id="stock-no-data" class="no-data-tile">📈 Stock data will be available after sync</div>
-                <div id="stock-grid" class="hidden">
-                    <div class="dashboard-grid">
-                      <div class="tile"><div class="tile-icon">📊</div><div class="tile-value" id="stock-price">--</div><div class="tile-label" id="stock-sym">Stock Price</div></div>
-                      <div class="tile"><div class="tile-icon" id="stock-trend-icon">-</div><div class="tile-value" id="stock-change">--%</div><div class="tile-label">Daily Change</div></div>
-                    </div>
-                    <div class="update-footer" id="stock-upd">Last Update: --</div>
-                </div>
-                <label>Track Stock/ETF:</label>
-                <select name="stock_symbol"></select>
-                <label class="checkbox-label"><input type="checkbox" name="stock_fn"> Display Full Company Name</label>
-              </div>
-            </div>
-
-            <div class="panel" id="panel-6">
+            <div class="panel" id="panel-7">
               <label class="checkbox-label mt-0"><input type="checkbox" id="showPc" name="show_pc"> PC Monitoring Screen</label>
               <div id="pcContent" class="collapsible">
                 <div id="pc-no-data" class="no-data-tile">🖥️ PC data will be available after sync</div>
@@ -291,7 +315,7 @@
               </div>
             </div>
 
-            <div class="panel" id="panel-7">
+            <div class="panel" id="panel-8">
               <label class="checkbox-label mt-0"><input type="checkbox" id="showMedia" name="show_media"> PC Media Screen</label>
               <div id="mediaContent" class="collapsible">
                 <div id="media-no-data" class="no-data-tile">🎵 Media data will be available after sync and/or when media is played</div>
@@ -308,7 +332,7 @@
               </div>
             </div>
 
-            <div class="panel" id="panel-8">
+            <div class="panel" id="panel-9">
               <label class="checkbox-label mt-0"><input type="checkbox" id="showBambu" name="show_bambu"> Bambu 3D Printer Screen</label>
               <div id="bambuContent" class="collapsible">
                 <div id="bambu-no-data" class="no-data-tile">🖨️ Printer data will be available after connection is established</div>

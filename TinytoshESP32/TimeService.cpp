@@ -26,10 +26,13 @@ bool TimeService::fetchLocationData(Config& config) {
       config.longitude = doc["lon"].as<float>();
       config.timezone = doc["timezone"].as<String>();
       config.city = doc["city"].as<String>(); 
+      config.country = doc["country"].as<String>(); 
+      config.country_code = doc["countryCode"].as<String>(); 
       
-      Serial.printf("TimeService: Success! Location: %s (Lat: %.4f, Lon: %.4f), TZ: %s\n", 
-                    config.city.c_str(), config.latitude, 
-                    config.longitude, config.timezone.c_str());
+      Serial.printf(
+        "TimeService: Success! Location: %s, %s (%s) - Lat: %.4f, Lon: %.4f, TZ: %s\n", 
+        config.city.c_str(), config.country.c_str(), config.country_code.c_str(), config.latitude, config.longitude, config.timezone.c_str()
+      );
       return true;
     } else {
       Serial.printf("TimeService: Location JSON parsing failed or status not 'success': %s\n", error.c_str()); 
@@ -56,7 +59,7 @@ void TimeService::syncNTP(const String& ianaTimezone) {
   String posixTimezone = lookupPosixTimezone(ianaTimezone);
   
   Serial.printf("TimeService: Configuring NTP with POSIX rule: %s\n", posixTimezone.c_str()); 
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  configTime(gmtOffset_sec, daylightOffset_sec, NTP_SERVER);
   
   setenv("TZ", posixTimezone.c_str(), 1); 
   tzset(); 

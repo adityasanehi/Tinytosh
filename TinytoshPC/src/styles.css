@@ -92,8 +92,22 @@ hr {
 #location-info { 
   text-align: center; 
   margin-top: 0px; 
+  margin-bottom: 0px; 
   color: var(--text-muted); 
   font-weight: 400; 
+}
+
+#greetings-text {
+  display: none;
+}
+
+.greetings-text {
+  text-align: center;
+  color: var(--accent);
+  margin-bottom: 24px;
+  font-style: italic;
+  font-weight: normal;
+  letter-spacing: 1px;
 }
 
 /* Identity Box */

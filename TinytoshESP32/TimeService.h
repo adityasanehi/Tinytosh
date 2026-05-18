@@ -17,8 +17,8 @@ public:
     String lookupPosixTimezone(const String& ianaTimezone);
 
 private:
-    const char* LOCATION_API_URL = "http://ip-api.com/json/";
-    const char* ntpServer = "pool.ntp.org";
+    static constexpr const char* LOCATION_API_URL = "http://ip-api.com/json/";
+    static constexpr const char* NTP_SERVER = "pool.ntp.org";
     const long  gmtOffset_sec = 0; 
     const int   daylightOffset_sec = 0;
 };

@@ -20,6 +20,32 @@ const COLOR_INFO = "#3b82f6";             // Blue (Paused, Wi-Fi)
 const COLOR_ERROR = "#ef4444";            // Red (Errors, Failed)
 const COLOR_MUTED = "#888";               // Gray (Stopped, Not Connected)
 
+const countryGreetings = {
+  "BY": "Жыве Беларусь ⚪🔴⚪",
+  "UA": "Слава Україні 🇺🇦",
+  "RU": "Россия Будет Свободной ⚪🔵⚪",
+  "GB": "Cheers, Britain 🇬🇧",
+  "US": "Howdy, America 🇺🇸",
+  "PL": "Dzień dobry, Polsko 🇵🇱",
+  "CA": "Hello, Canada 🇨🇦",
+  "AU": "G'day, Australia 🇦🇺",
+  "FR": "Bonjour, France 🇫🇷",
+  "DE": "Hallo, Deutschland 🇩🇪",
+  "IT": "Viva l'Italia 🇮🇹",
+  "ES": "Viva España 🇪🇸",
+  "JP": "Konnichiwa, Japan 🇯🇵",
+  "BR": "Olá, Brasil 🇧🇷",
+  "IN": "Namaste, India 🇮🇳",
+  "MX": "Viva México 🇲🇽",
+  "ZA": "Sawubona, South Africa 🇿🇦",
+  "NZ": "Kia Ora, New Zealand 🇳🇿",
+  "IE": "Dia dhuit, Ireland 🇮🇪",
+  "CH": "Grüezi, Switzerland 🇨🇭",
+  "NL": "Hallo, Nederland 🇳🇱",
+  "KR": "Annyeonghaseyo, Korea 🇰🇷",
+  "GR": "Yassou, Greece 🇬🇷"
+};
+
 const topStocks = [
   ["S&P 500 ETF", "SPY"], ["Invesco QQQ (Tech)", "QQQ"], ["Dow Jones ETF", "DIA"],
   ["Vanguard Total Stock", "VTI"], ["Vanguard S&P 500", "VOO"], ["Semiconductor ETF", "SMH"],
@@ -70,6 +96,72 @@ const topCoins = [
   [33285, "DAI"], [33814, "PAXG"], [32684, "BUSD"], [33282, "TUSD"], [45204, "FRAX"],
   [44082, "USDP"], [33263, "ENJ"], [33190, "BAT"], [2734, "ZEC"], [2740, "DASH"],
   [46580, "LDO"], [51717, "OP"], [51859, "SUI"], [51608, "BLUR"], [51381, "GMX"]
+];
+
+const allCountries = [
+  ["AF", "Afghanistan"], ["AL", "Albania"], ["DZ", "Algeria"], ["AS", "American Samoa"],
+  ["AD", "Andorra"], ["AO", "Angola"], ["AI", "Anguilla"], ["AQ", "Antarctica"],
+  ["AG", "Antigua and Barbuda"], ["AR", "Argentina"], ["AM", "Armenia"], ["AW", "Aruba"],
+  ["AU", "Australia"], ["AT", "Austria"], ["AZ", "Azerbaijan"], ["BS", "Bahamas"],
+  ["BH", "Bahrain"], ["BD", "Bangladesh"], ["BB", "Barbados"], ["BY", "Belarus"],
+  ["BE", "Belgium"], ["BZ", "Belize"], ["BJ", "Benin"], ["BM", "Bermuda"],
+  ["BT", "Bhutan"], ["BO", "Bolivia"], ["BA", "Bosnia and Herzegovina"], ["BW", "Botswana"],
+  ["BR", "Brazil"], ["IO", "British Indian Ocean Territory"], ["VG", "British Virgin Islands"],
+  ["BN", "Brunei"], ["BG", "Bulgaria"], ["BF", "Burkina Faso"], ["BI", "Burundi"],
+  ["CV", "Cabo Verde"], ["KH", "Cambodia"], ["CM", "Cameroon"], ["CA", "Canada"],
+  ["KY", "Cayman Islands"], ["CF", "Central African Republic"], ["TD", "Chad"],
+  ["CL", "Chile"], ["CN", "China"], ["CX", "Christmas Island"], ["CC", "Cocos Islands"],
+  ["CO", "Colombia"], ["KM", "Comoros"], ["CD", "Congo (DRC)"], ["CG", "Congo (Republic)"],
+  ["CK", "Cook Islands"], ["CR", "Costa Rica"], ["CI", "Cote d'Ivoire"], ["HR", "Croatia"],
+  ["CU", "Cuba"], ["CW", "Curacao"], ["CY", "Cyprus"], ["CZ", "Czechia"],
+  ["DK", "Denmark"], ["DJ", "Djibouti"], ["DM", "Dominica"], ["DO", "Dominican Republic"],
+  ["EC", "Ecuador"], ["EG", "Egypt"], ["SV", "El Salvador"], ["GQ", "Equatorial Guinea"],
+  ["ER", "Eritrea"], ["EE", "Estonia"], ["SZ", "Eswatini"], ["ET", "Ethiopia"],
+  ["FK", "Falkland Islands"], ["FO", "Faroe Islands"], ["FJ", "Fiji"], ["FI", "Finland"],
+  ["FR", "France"], ["GF", "French Guiana"], ["PF", "French Polynesia"], ["GA", "Gabon"],
+  ["GM", "Gambia"], ["GE", "Georgia"], ["DE", "Germany"], ["GH", "Ghana"],
+  ["GI", "Gibraltar"], ["GR", "Greece"], ["GL", "Greenland"], ["GD", "Grenada"],
+  ["GP", "Guadeloupe"], ["GU", "Guam"], ["GT", "Guatemala"], ["GG", "Guernsey"],
+  ["GN", "Guinea"], ["GW", "Guinea-Bissau"], ["GY", "Guyana"], ["HT", "Haiti"],
+  ["HN", "Honduras"], ["HK", "Hong Kong"], ["HU", "Hungary"], ["IS", "Iceland"],
+  ["IN", "India"], ["ID", "Indonesia"], ["IR", "Iran"], ["IQ", "Iraq"],
+  ["IE", "Ireland"], ["IM", "Isle of Man"], ["IL", "Israel"], ["IT", "Italy"],
+  ["JM", "Jamaica"], ["JP", "Japan"], ["JE", "Jersey"], ["JO", "Jordan"],
+  ["KZ", "Kazakhstan"], ["KE", "Kenya"], ["KI", "Kiribati"], ["KW", "Kuwait"],
+  ["KG", "Kyrgyzstan"], ["LA", "Laos"], ["LV", "Latvia"], ["LB", "Lebanon"],
+  ["LS", "Lesotho"], ["LR", "Liberia"], ["LY", "Libya"], ["LI", "Liechtenstein"],
+  ["LT", "Lithuania"], ["LU", "Luxembourg"], ["MO", "Macao"], ["MG", "Madagascar"],
+  ["MW", "Malawi"], ["MY", "Malaysia"], ["MV", "Maldives"], ["ML", "Mali"],
+  ["MT", "Malta"], ["MH", "Marshall Islands"], ["MQ", "Martinique"], ["MR", "Mauritania"],
+  ["MU", "Mauritius"], ["YT", "Mayotte"], ["MX", "Mexico"], ["FM", "Micronesia"],
+  ["MD", "Moldova"], ["MC", "Monaco"], ["MN", "Mongolia"], ["ME", "Montenegro"],
+  ["MS", "Montserrat"], ["MA", "Morocco"], ["MZ", "Mozambique"], ["MM", "Myanmar"],
+  ["NA", "Namibia"], ["NR", "Nauru"], ["NP", "Nepal"], ["NL", "Netherlands"],
+  ["NC", "New Caledonia"], ["NZ", "New Zealand"], ["NI", "Nicaragua"], ["NE", "Niger"],
+  ["NG", "Nigeria"], ["NU", "Niue"], ["NF", "Norfolk Island"], ["KP", "North Korea"],
+  ["MK", "North Macedonia"], ["MP", "Northern Mariana Islands"], ["NO", "Norway"],
+  ["OM", "Oman"], ["PK", "Pakistan"], ["PW", "Palau"], ["PS", "Palestine"],
+  ["PA", "Panama"], ["PG", "Papua New Guinea"], ["PY", "Paraguay"], ["PE", "Peru"],
+  ["PH", "Philippines"], ["PN", "Pitcairn"], ["PL", "Poland"], ["PT", "Portugal"],
+  ["PR", "Puerto Rico"], ["QA", "Qatar"], ["RE", "Reunion"], ["RO", "Romania"],
+  ["RU", "Russia"], ["RW", "Rwanda"], ["WS", "Samoa"], ["SM", "San Marino"],
+  ["ST", "Sao Tome and Principe"], ["SA", "Saudi Arabia"], ["SN", "Senegal"],
+  ["RS", "Serbia"], ["SC", "Seychelles"], ["SL", "Sierra Leone"], ["SG", "Singapore"],
+  ["SX", "Sint Maarten"], ["SK", "Slovakia"], ["SI", "Slovenia"], ["SB", "Solomon Islands"],
+  ["SO", "Somalia"], ["ZA", "South Africa"], ["GS", "South Georgia"], ["KR", "South Korea"],
+  ["SS", "South Sudan"], ["ES", "Spain"], ["LK", "Sri Lanka"], ["BL", "St. Barthelemy"],
+  ["KN", "St. Kitts and Nevis"], ["LC", "St. Lucia"], ["MF", "St. Martin"],
+  ["PM", "St. Pierre and Miquelon"], ["VC", "St. Vincent and Grenadines"], ["SD", "Sudan"],
+  ["SR", "Suriname"], ["SJ", "Svalbard and Jan Mayen"], ["SE", "Sweden"],
+  ["CH", "Switzerland"], ["SY", "Syria"], ["TW", "Taiwan"], ["TJ", "Tajikistan"],
+  ["TZ", "Tanzania"], ["TH", "Thailand"], ["TL", "Timor-Leste"], ["TG", "Togo"],
+  ["TK", "Tokelau"], ["TO", "Tonga"], ["TT", "Trinidad and Tobago"], ["TN", "Tunisia"],
+  ["TR", "Turkey"], ["TM", "Turkmenistan"], ["TC", "Turks and Caicos Islands"],
+  ["TV", "Tuvalu"], ["VI", "U.S. Virgin Islands"], ["UG", "Uganda"], ["UA", "Ukraine"],
+  ["AE", "United Arab Emirates"], ["GB", "United Kingdom"], ["US", "United States"],
+  ["UY", "Uruguay"], ["UZ", "Uzbekistan"], ["VU", "Vanuatu"], ["VA", "Vatican City"],
+  ["VE", "Venezuela"], ["VN", "Vietnam"], ["WF", "Wallis and Futuna"],
+  ["EH", "Western Sahara"], ["YE", "Yemen"], ["ZM", "Zambia"], ["ZW", "Zimbabwe"]
 ];
 
 const allCurrencies = [
@@ -140,6 +232,16 @@ let currentDeviceIp = "";
 // Functions
 
 function populateDropdowns() {
+    const countrySelect = document.querySelector('select[name="country_code"]');
+    if (countrySelect) {
+        allCountries.forEach(c => {
+            let opt = document.createElement("option");
+            opt.value = c[0];
+            opt.text = c[1];
+            countrySelect.add(opt);
+        });
+    }
+
     const stockSelect = document.querySelector('select[name="stock_symbol"]');
     if (stockSelect) {
         topStocks.forEach(s => {
@@ -174,6 +276,25 @@ function populateDropdowns() {
             opt2.text = c[0].toUpperCase() + " - " + c[1];
             targetSelect.add(opt2);
         });
+    }
+
+    const tzSelect = document.querySelector('select[name="timezone"]');
+    if (tzSelect) {
+        tzSelect.innerHTML = "";
+        
+        if (typeof Intl !== 'undefined' && Intl.supportedValuesOf) {
+            Intl.supportedValuesOf('timeZone').forEach(tz => {
+                let opt = document.createElement("option");
+                opt.value = tz;
+                opt.text = tz;
+                tzSelect.add(opt);
+            });
+        } else {
+            let opt = document.createElement("option");
+            opt.value = "UTC";
+            opt.text = "UTC";
+            tzSelect.add(opt);
+        }
     }
 }
 
@@ -425,11 +546,11 @@ async function initAutostart() {
 function updateVisibility() {
   var pairs = [
       ['autoDetect','manualFields',true], ['nightMode','nightFields',false], 
-      ['showTime', 'timeContent',false], ['showWeather','weatherContent',false], 
-      ['showPc','pcContent',false], ['showCrypto','cryptoContent',false], 
-      ['showCurrency','currencyContent',false], ['showStock','stockContent',false], 
-      ['showAQI','aqiContent',false], ['showMedia', 'mediaContent', false],
-      ['showBambu', 'bambuContent', false]
+      ['showTime', 'timeContent',false], ['showCalendar', 'calendarContent',false],
+      ['showWeather','weatherContent',false], ['showAQI','aqiContent',false],
+      ['showStock','stockContent',false], ['showCrypto','cryptoContent',false], 
+      ['showCurrency','currencyContent',false], ['showPc','pcContent',false], 
+      ['showMedia', 'mediaContent', false], ['showBambu', 'bambuContent', false]
   ];
   pairs.forEach(p => {
     var ch = document.getElementById(p[0]); if(!ch) return;
@@ -537,6 +658,30 @@ function checkSafetyNet() {
   }
 }
 
+function updateLiveHeader() {
+    const cityInput = document.querySelector('input[name="city"]');
+    const countrySel = document.querySelector('select[name="country_code"]');
+    const tzSel = document.querySelector('select[name="timezone"]');
+
+    const city = (cityInput && cityInput.value) ? cityInput.value : "--";
+    const countryName = (countrySel && countrySel.selectedIndex >= 0) ? countrySel.options[countrySel.selectedIndex].text : "--";
+    const countryCode = countrySel ? countrySel.value : null;
+    const tz = (tzSel && tzSel.value) ? tzSel.value : "--";
+
+    const locInfo = document.getElementById("location-info");
+    if (locInfo && city !== "--") locInfo.innerText = `📍 ${city}, ${countryName} (${tz})`;
+
+    const greetingElement = document.getElementById("greetings-text");
+    if (greetingElement) {
+        if (countryCode && countryGreetings[countryCode]) {
+            greetingElement.innerText = countryGreetings[countryCode];
+            greetingElement.style.display = "block";
+        } else {
+            greetingElement.style.display = "none";
+        }
+    }
+}
+
 async function fetchDeviceData() {
     try {
         const jsonStr = await invoke("fetch_device_data");
@@ -573,10 +718,21 @@ async function fetchDeviceData() {
             setRadio('time_format', d.time_format);
             
             setCb('autoDetect', d.auto_detect);
-            setVal('city', d.city);
             setVal('latitude', d.latitude);
             setVal('longitude', d.longitude);
+            setVal('country_code', d.country_code);
+            setVal('city', d.city);
             setVal('timezone', d.timezone);
+
+            const eggElement = document.getElementById("easter-egg");
+            if (eggElement) {
+                if (d.country_code && easterEggs[d.country_code]) {
+                    eggElement.innerText = easterEggs[d.country_code];
+                    eggElement.style.display = "block";
+                } else {
+                    eggElement.style.display = "none";
+                }
+            }
             
             setCb('nightMode', d.night_mode);
             setVal('night_start', d.night_start);
@@ -587,23 +743,35 @@ async function fetchDeviceData() {
             
             setCb('showTime', d.show_time);
             setCb('date_display', d.date_display, true);
+
+            setCb('showCalendar', d.show_calendar);
+            setRadio('cal_start', d.cal_start);
+            setCb('cal_hol', d.cal_hol, true);
+            setCb('cal_min', d.cal_min, true);
+
             setCb('showWeather', d.show_weather);
             setRadio('temp_unit', d.temp_unit);
             setCb('round_temps', d.round_temps, true);
+
             setCb('showAQI', d.show_aqi);
             setRadio('aqi_type', d.aqi_type);
+
             setCb('showPc', d.show_pc);
+
             setCb('showStock', d.show_stock);
             setVal('stock_symbol', d.stock_symbol);
             setCb('stock_fn', d.stock_fn, true);
+
             setCb('showCrypto', d.show_crypto);
             setVal('crypto_id', d.crypto_id);
             setCb('crypto_fn', d.crypto_fn, true);
+
             setCb('showCurrency', d.show_currency);
             setVal('currency_base', d.currency_base);
             setVal('currency_target', d.currency_target);
             setVal('currency_multiplier', d.currency_multiplier);
             setCb('currency_fn', d.currency_fn, true);
+
             setCb('showMedia', d.show_media);
             setCb('showBambu', d.show_bambu);
             setVal('bambu_ip', d.bambu_ip);
@@ -652,10 +820,12 @@ async function fetchDeviceData() {
         set('preview-time', timeStr);
         set('preview-date', dateStr);
 
-        const city = d.city || document.querySelector('input[name="city"]')?.value || "--";
-        const tz = d.timezone || document.querySelector('select[name="timezone"]')?.value || "--";
-        const locInfo = document.getElementById("location-info");
-        if (locInfo) locInfo.innerText = `📍 ${city} (${tz})`;
+        set('preview-tz', d.timezone || document.querySelector('select[name="timezone"]')?.value || "--");
+        if (d.cal_count !== undefined) { 
+            set('preview-hol', d.cal_count > 0 ? d.cal_count : 'No holiday data'); 
+        }
+
+        updateLiveHeader();
 
         if (d.temp !== undefined && d.temp !== 'nan') {
             let nd = document.getElementById('weather-no-data'); if(nd) nd.style.display = 'none';
@@ -787,10 +957,15 @@ window.addEventListener("DOMContentLoaded", () => {
     setInterval(fetchDeviceData, HARDWARE_SYNC_INTERVAL_MS); 
     setTimeout(fetchDeviceData, INITIAL_SYNC_DELAY_MS); 
 
-    ['autoDetect', 'nightMode', 'showTime', 'showWeather', 'showPc', 'showCrypto', 'showCurrency', 'showStock', 'showAQI', 'showMedia', 'showBambu', 'autoCycle'].forEach(id => { 
+    ['autoDetect', 'nightMode', 'showTime', 'showCalendar', 'showWeather', 'showPc', 'showCrypto', 'showCurrency', 'showStock', 'showAQI', 'showMedia', 'showBambu', 'autoCycle'].forEach(id => { 
         var el = document.getElementById(id); 
         if(el) el.addEventListener('change', () => { updateVisibility(); syncScreenOrder(true); }); 
     });
+
+    document.querySelector('input[name="city"]')?.addEventListener('input', updateLiveHeader);
+    document.querySelector('select[name="country_code"]')?.addEventListener('change', updateLiveHeader);
+    document.querySelector('select[name="timezone"]')?.addEventListener('change', updateLiveHeader);
+
     updateVisibility();
 
     const nb = document.getElementById('animNone');

@@ -26,6 +26,7 @@
                     <h3 style="margin: 0 0 10px 0; color: var(--accent);">Available Screens & Services</h3>
                     <ul class="screens-list">
                         <li>🕒 <a href="#screen-clock"><strong>Internet Clock:</strong></a> Auto-syncs time and date based on your location.</li>
+                        <li>📅 <a href="#screen-calendar"><strong>Calendar:</strong></a> Displays the current date, monthly grid, and national holidays.</li>
                         <li>🌤️ <a href="#screen-weather"><strong>Weather Station:</strong></a> Live Temperature, Humidity, and Forecasts (via Open-Meteo).</li>
                         <li>🍃 <a href="#screen-aqi"><strong>Air Quality:</strong></a> Monitor local AQI levels (US & EU Standards).</li>
                         <li>📊 <a href="#screen-stock"><strong>Stock Tracker:</strong></a> Track market data for ~100 top global assets, ETFs, and Mega-Cap Tech with daily trend indicators.</li>
@@ -398,10 +399,10 @@
                         </ul>
 
                         <div class="feature-section-title">Location & Timezone</div>
-                        <p>Tinytosh uses these settings to provide accurate Clock, Weather, and Air Quality data.</p>
+                        <p>Tinytosh uses these settings to provide accurate Clock, Weather, Air Quality, and Holiday data.</p>
                         <ul>
-                            <li><strong>Auto-Detect:</strong> Uses your IP address to automatically determine location and timezone.</li>
-                            <li><strong>Manual Entry:</strong> Override with specific City names, Latitude/Longitude coordinates, and Timezone strings.</li>
+                            <li><strong>Auto-Detect:</strong> Uses your IP address to automatically determine location, country, and timezone.</li>
+                            <li><strong>Manual Entry:</strong> Override with specific City names, Latitude/Longitude coordinates, precise Country selection, and native Timezones.</li>
                         </ul>
                         <span class="api-tag">Source: ip-api.com</span>
 
@@ -499,6 +500,45 @@
                                     <div class="assembly-item">
                                         <div class="assembly-img-wrapper">
                                             <img src="img/real_weather.jpg" alt="Weather Real Photo" class="real-photo">
+                                        </div>
+                                        <div class="assembly-caption">Real Photo</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+
+                    <div class="feature-item" id="screen-calendar">
+                        <div class="feature-header">📅 Calendar & Holidays</div>
+                        <div class="feature-section-title">Function</div>
+                        <p>Displays the current date alongside a full monthly grid and tracks national public holidays based on your country.</p>
+                        <div class="feature-section-title">Settings</div>
+                        <ul>
+                            <li><strong>Start Week On:</strong> Choose whether the calendar grid starts on Monday or Sunday.</li>
+                            <li><strong>National Holidays:</strong> Toggle the display of public holidays. When a holiday occurs, it replaces the weekday text and highlights the day on the grid.</li>
+                            <li><strong>Minimalistic Mode:</strong> Hides the monthly grid entirely and beautifully centers the current day, month, and year on the screen.</li>
+                        </ul>
+
+                        <div class="feature-section-title">Layout</div>
+                        <p>
+                            <strong>Standard:</strong> Left side displays a large day, current month, year, and weekday/holiday name. Right side displays a full month calendar with the current day boxed and holidays inverted. <br>
+                            <strong>Minimalist:</strong> The grid is hidden, and the date column expands to fill the screen for a clean, highly readable layout.
+                        </p>
+                        <span class="api-tag">Source: date.nager.at (Public Holidays)</span>
+
+                        <details>
+                            <summary>📸 View Screen Preview</summary>
+                            <div class="assembly-container">
+                                <div class="assembly-grid">
+                                    <div class="assembly-item">
+                                        <div class="assembly-img-wrapper">
+                                            <img src="img/render_calendar.png" alt="Calendar Layout Render">
+                                        </div>
+                                        <div class="assembly-caption">Layout Render</div>
+                                    </div>
+                                    <div class="assembly-item">
+                                        <div class="assembly-img-wrapper">
+                                            <img src="img/real_calendar.jpg" alt="Calendar Real Photo" class="real-photo">
                                         </div>
                                         <div class="assembly-caption">Real Photo</div>
                                     </div>

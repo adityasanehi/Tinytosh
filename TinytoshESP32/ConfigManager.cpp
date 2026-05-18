@@ -10,8 +10,10 @@ void ConfigManager::loadConfig(Config& config) {
   config.auto_detect = preferences.getBool("auto_detect", true);
   config.latitude = preferences.getFloat("latitude", 0.0);
   config.longitude = preferences.getFloat("longitude", 0.0);
-  config.timezone = preferences.getString("timezone", "");
+  config.country = preferences.getString("country", "");
+  config.country_code = preferences.getString("country_c", "");
   config.city = preferences.getString("city", "");
+  config.timezone = preferences.getString("timezone", "");
   config.time_format = preferences.getString("time_format", "24");
   config.date_display = preferences.getBool("date_display", true);
   config.refresh_interval_min = preferences.getULong("refresh_min", 15);
@@ -27,6 +29,7 @@ void ConfigManager::loadConfig(Config& config) {
   }
 
   config.show_time = preferences.getBool("show_time", true);
+  config.show_calendar = preferences.getBool("show_calendar", true);
   config.show_weather = preferences.getBool("show_weather", true);
   config.show_aqi = preferences.getBool("show_aqi", true);
   config.show_stock = preferences.getBool("show_stock", true);
@@ -39,6 +42,11 @@ void ConfigManager::loadConfig(Config& config) {
   config.hide_empty_pc = preferences.getBool("hide_pc", true);
   config.hide_empty_media = preferences.getBool("hide_media", true);
   config.hide_empty_bambu = preferences.getBool("hide_bambu", true);
+
+  // Calendar Settings
+  config.calendar_start_day = preferences.getString("cal_start", "mon");
+  config.calendar_show_holidays = preferences.getBool("cal_hol", true);
+  config.calendar_minimal = preferences.getBool("cal_min", false);
 
   // Weather & AQI Settings
   config.round_temps = preferences.getBool("round_temps", true);
@@ -82,8 +90,10 @@ void ConfigManager::saveConfig(const Config& config) {
   preferences.putBool("auto_detect", config.auto_detect);
   preferences.putFloat("latitude", config.latitude);
   preferences.putFloat("longitude", config.longitude);
-  preferences.putString("timezone", config.timezone);
+  preferences.putString("country", config.country);
+  preferences.putString("country_c", config.country_code);
   preferences.putString("city", config.city);
+  preferences.putString("timezone", config.timezone);
   preferences.putString("time_format", config.time_format);
   preferences.putBool("date_display", config.date_display);
   preferences.putULong("refresh_min", config.refresh_interval_min);
@@ -94,6 +104,7 @@ void ConfigManager::saveConfig(const Config& config) {
   preferences.putBytes("scr_order", config.screen_order, sizeof(config.screen_order));
 
   preferences.putBool("show_time", config.show_time);
+  preferences.putBool("show_calendar", config.show_calendar);
   preferences.putBool("show_weather", config.show_weather);
   preferences.putBool("show_aqi", config.show_aqi);
   preferences.putBool("show_stock", config.show_stock);
@@ -106,6 +117,11 @@ void ConfigManager::saveConfig(const Config& config) {
   preferences.putBool("hide_pc", config.hide_empty_pc);
   preferences.putBool("hide_media", config.hide_empty_media);
   preferences.putBool("hide_bambu", config.hide_empty_bambu);
+
+  // Calendar Settings
+  preferences.putString("cal_start", config.calendar_start_day);
+  preferences.putBool("cal_hol", config.calendar_show_holidays);
+  preferences.putBool("cal_min", config.calendar_minimal);
 
   // Weather & AQI Settings
   preferences.putBool("round_temps", config.round_temps);

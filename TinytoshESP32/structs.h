@@ -5,6 +5,7 @@
 
 enum ScreenType {
   SCREEN_TIME,
+  SCREEN_CALENDAR,
   SCREEN_WEATHER,
   SCREEN_AIR_QUALITY,
   SCREEN_STOCK,
@@ -18,6 +19,7 @@ enum ScreenType {
 
 inline constexpr const char* SCREEN_NAMES[] = {
   "Time & Date",
+  "Calendar",
   "Weather",
   "Air Quality",
   "Stock Tracking",
@@ -38,6 +40,11 @@ enum AnimType {
   ANIM_RANDOM
 };
 
+struct Holiday {
+  String date;
+  String name;
+};
+
 struct Config {
   // Network Data
   String device_id = "";
@@ -48,8 +55,10 @@ struct Config {
   bool auto_detect = true;
   float latitude = 0.0;
   float longitude = 0.0;
-  String timezone = ""; 
+  String country = "";
+  String country_code = "";
   String city = "";
+  String timezone = ""; 
   String time_format = "24";
   bool date_display = true;
   unsigned long refresh_interval_min = 15;
@@ -57,9 +66,10 @@ struct Config {
   // Screens Settings
   bool screen_auto_cycle = true;
   int screen_interval_sec = 15;
-  int screen_order[NUM_SCREENS] = {0, 1, 2, 3, 4, 5, 6, 7, 8};
+  int screen_order[NUM_SCREENS] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
   bool show_time = true;
+  bool show_calendar = true;
   bool show_weather = true;
   bool show_aqi = true;
   bool show_stock = true;
@@ -72,6 +82,11 @@ struct Config {
   bool hide_empty_pc = true;
   bool hide_empty_media = true;
   bool hide_empty_bambu = true;
+
+  // Calendar Settings
+  String calendar_start_day = "mon";
+  bool calendar_show_holidays = true;
+  bool calendar_minimal = false;
 
   // Weather & AQI Settings
   bool round_temps = true; 
@@ -102,6 +117,12 @@ struct Config {
   String night_end = "06:00";
   String night_dim_start = "22:00";
   int night_action = 1; // 0: None, 1: Dim, 2: Off, 3: Dim + Off
+};
+
+struct CalendarData {
+  Holiday items[30];
+  int count = 0;
+  bool updated = false;
 };
 
 struct WeatherData {
@@ -179,6 +200,11 @@ struct BambuData {
   int fan_aux = 0;
 };
 
+struct CountryOption {
+  const char* code;
+  const char* name;
+};
+
 struct StockOption {
   const char* name;
   const char* ticker;
@@ -192,6 +218,72 @@ struct CoinOption {
 struct CurrencyOption {
   const char* code;
   const char* name;
+};
+
+inline constexpr CountryOption allCountries[] = {
+  {"AF", "Afghanistan"}, {"AL", "Albania"}, {"DZ", "Algeria"}, {"AS", "American Samoa"},
+  {"AD", "Andorra"}, {"AO", "Angola"}, {"AI", "Anguilla"}, {"AQ", "Antarctica"},
+  {"AG", "Antigua and Barbuda"}, {"AR", "Argentina"}, {"AM", "Armenia"}, {"AW", "Aruba"},
+  {"AU", "Australia"}, {"AT", "Austria"}, {"AZ", "Azerbaijan"}, {"BS", "Bahamas"},
+  {"BH", "Bahrain"}, {"BD", "Bangladesh"}, {"BB", "Barbados"}, {"BY", "Belarus"},
+  {"BE", "Belgium"}, {"BZ", "Belize"}, {"BJ", "Benin"}, {"BM", "Bermuda"},
+  {"BT", "Bhutan"}, {"BO", "Bolivia"}, {"BA", "Bosnia and Herzegovina"}, {"BW", "Botswana"},
+  {"BR", "Brazil"}, {"IO", "British Indian Ocean Territory"}, {"VG", "British Virgin Islands"},
+  {"BN", "Brunei"}, {"BG", "Bulgaria"}, {"BF", "Burkina Faso"}, {"BI", "Burundi"},
+  {"CV", "Cabo Verde"}, {"KH", "Cambodia"}, {"CM", "Cameroon"}, {"CA", "Canada"},
+  {"KY", "Cayman Islands"}, {"CF", "Central African Republic"}, {"TD", "Chad"},
+  {"CL", "Chile"}, {"CN", "China"}, {"CX", "Christmas Island"}, {"CC", "Cocos Islands"},
+  {"CO", "Colombia"}, {"KM", "Comoros"}, {"CD", "Congo (DRC)"}, {"CG", "Congo (Republic)"},
+  {"CK", "Cook Islands"}, {"CR", "Costa Rica"}, {"CI", "Cote d'Ivoire"}, {"HR", "Croatia"},
+  {"CU", "Cuba"}, {"CW", "Curacao"}, {"CY", "Cyprus"}, {"CZ", "Czechia"},
+  {"DK", "Denmark"}, {"DJ", "Djibouti"}, {"DM", "Dominica"}, {"DO", "Dominican Republic"},
+  {"EC", "Ecuador"}, {"EG", "Egypt"}, {"SV", "El Salvador"}, {"GQ", "Equatorial Guinea"},
+  {"ER", "Eritrea"}, {"EE", "Estonia"}, {"SZ", "Eswatini"}, {"ET", "Ethiopia"},
+  {"FK", "Falkland Islands"}, {"FO", "Faroe Islands"}, {"FJ", "Fiji"}, {"FI", "Finland"},
+  {"FR", "France"}, {"GF", "French Guiana"}, {"PF", "French Polynesia"}, {"GA", "Gabon"},
+  {"GM", "Gambia"}, {"GE", "Georgia"}, {"DE", "Germany"}, {"GH", "Ghana"},
+  {"GI", "Gibraltar"}, {"GR", "Greece"}, {"GL", "Greenland"}, {"GD", "Grenada"},
+  {"GP", "Guadeloupe"}, {"GU", "Guam"}, {"GT", "Guatemala"}, {"GG", "Guernsey"},
+  {"GN", "Guinea"}, {"GW", "Guinea-Bissau"}, {"GY", "Guyana"}, {"HT", "Haiti"},
+  {"HN", "Honduras"}, {"HK", "Hong Kong"}, {"HU", "Hungary"}, {"IS", "Iceland"},
+  {"IN", "India"}, {"ID", "Indonesia"}, {"IR", "Iran"}, {"IQ", "Iraq"},
+  {"IE", "Ireland"}, {"IM", "Isle of Man"}, {"IL", "Israel"}, {"IT", "Italy"},
+  {"JM", "Jamaica"}, {"JP", "Japan"}, {"JE", "Jersey"}, {"JO", "Jordan"},
+  {"KZ", "Kazakhstan"}, {"KE", "Kenya"}, {"KI", "Kiribati"}, {"KW", "Kuwait"},
+  {"KG", "Kyrgyzstan"}, {"LA", "Laos"}, {"LV", "Latvia"}, {"LB", "Lebanon"},
+  {"LS", "Lesotho"}, {"LR", "Liberia"}, {"LY", "Libya"}, {"LI", "Liechtenstein"},
+  {"LT", "Lithuania"}, {"LU", "Luxembourg"}, {"MO", "Macao"}, {"MG", "Madagascar"},
+  {"MW", "Malawi"}, {"MY", "Malaysia"}, {"MV", "Maldives"}, {"ML", "Mali"},
+  {"MT", "Malta"}, {"MH", "Marshall Islands"}, {"MQ", "Martinique"}, {"MR", "Mauritania"},
+  {"MU", "Mauritius"}, {"YT", "Mayotte"}, {"MX", "Mexico"}, {"FM", "Micronesia"},
+  {"MD", "Moldova"}, {"MC", "Monaco"}, {"MN", "Mongolia"}, {"ME", "Montenegro"},
+  {"MS", "Montserrat"}, {"MA", "Morocco"}, {"MZ", "Mozambique"}, {"MM", "Myanmar"},
+  {"NA", "Namibia"}, {"NR", "Nauru"}, {"NP", "Nepal"}, {"NL", "Netherlands"},
+  {"NC", "New Caledonia"}, {"NZ", "New Zealand"}, {"NI", "Nicaragua"}, {"NE", "Niger"},
+  {"NG", "Nigeria"}, {"NU", "Niue"}, {"NF", "Norfolk Island"}, {"KP", "North Korea"},
+  {"MK", "North Macedonia"}, {"MP", "Northern Mariana Islands"}, {"NO", "Norway"},
+  {"OM", "Oman"}, {"PK", "Pakistan"}, {"PW", "Palau"}, {"PS", "Palestine"},
+  {"PA", "Panama"}, {"PG", "Papua New Guinea"}, {"PY", "Paraguay"}, {"PE", "Peru"},
+  {"PH", "Philippines"}, {"PN", "Pitcairn"}, {"PL", "Poland"}, {"PT", "Portugal"},
+  {"PR", "Puerto Rico"}, {"QA", "Qatar"}, {"RE", "Reunion"}, {"RO", "Romania"},
+  {"RU", "Russia"}, {"RW", "Rwanda"}, {"WS", "Samoa"}, {"SM", "San Marino"},
+  {"ST", "Sao Tome and Principe"}, {"SA", "Saudi Arabia"}, {"SN", "Senegal"},
+  {"RS", "Serbia"}, {"SC", "Seychelles"}, {"SL", "Sierra Leone"}, {"SG", "Singapore"},
+  {"SX", "Sint Maarten"}, {"SK", "Slovakia"}, {"SI", "Slovenia"}, {"SB", "Solomon Islands"},
+  {"SO", "Somalia"}, {"ZA", "South Africa"}, {"GS", "South Georgia"}, {"KR", "South Korea"},
+  {"SS", "South Sudan"}, {"ES", "Spain"}, {"LK", "Sri Lanka"}, {"BL", "St. Barthelemy"},
+  {"KN", "St. Kitts and Nevis"}, {"LC", "St. Lucia"}, {"MF", "St. Martin"},
+  {"PM", "St. Pierre and Miquelon"}, {"VC", "St. Vincent and Grenadines"}, {"SD", "Sudan"},
+  {"SR", "Suriname"}, {"SJ", "Svalbard and Jan Mayen"}, {"SE", "Sweden"},
+  {"CH", "Switzerland"}, {"SY", "Syria"}, {"TW", "Taiwan"}, {"TJ", "Tajikistan"},
+  {"TZ", "Tanzania"}, {"TH", "Thailand"}, {"TL", "Timor-Leste"}, {"TG", "Togo"},
+  {"TK", "Tokelau"}, {"TO", "Tonga"}, {"TT", "Trinidad and Tobago"}, {"TN", "Tunisia"},
+  {"TR", "Turkey"}, {"TM", "Turkmenistan"}, {"TC", "Turks and Caicos Islands"},
+  {"TV", "Tuvalu"}, {"VI", "U.S. Virgin Islands"}, {"UG", "Uganda"}, {"UA", "Ukraine"},
+  {"AE", "United Arab Emirates"}, {"GB", "United Kingdom"}, {"US", "United States"},
+  {"UY", "Uruguay"}, {"UZ", "Uzbekistan"}, {"VU", "Vanuatu"}, {"VA", "Vatican City"},
+  {"VE", "Venezuela"}, {"VN", "Vietnam"}, {"WF", "Wallis and Futuna"},
+  {"EH", "Western Sahara"}, {"YE", "Yemen"}, {"ZM", "Zambia"}, {"ZW", "Zimbabwe"}
 };
 
 inline constexpr StockOption topStocks[] = {
@@ -333,6 +425,7 @@ inline constexpr CurrencyOption allCurrencies[] = {
 
 struct AppState {
   Config config;
+  CalendarData calendar;
   WeatherData weather;
   AirQualityData aqi;
   CryptoData crypto;

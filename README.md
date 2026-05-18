@@ -25,6 +25,7 @@
 
 ### Available Screens & Services
 * 🕒 **Internet Clock:** Auto-syncs time and date based on your location.
+* 📅 **Calendar & Holidays:** Displays the current date, a full monthly grid, and tracks national public holidays based on your country.
 * 🌤️ **Weather Station:** Live Temperature, Humidity, and Forecasts (via Open-Meteo).
 * 🍃 **Air Quality:** Monitor local AQI levels (US & EU Standards).
 * 📊 **Stock Tracker:** Track market data for ~100 top global assets, ETFs, and Mega-Cap Tech with daily trend indicators.
@@ -36,6 +37,7 @@
 
 ### ✨ Key Features
 * **Modular Dashboard:** Enable/Disable screens on the fly via a Web Panel or PC App. 
+* **Smart Location:** Auto-detect your location via IP or manually set your exact coordinates, country, and native timezone.
 * **Drag & Drop Reordering:** Fully customize your display sequence. Grab and drag screens to change their order. The configuration UI dynamically rearranges itself to match your custom layout perfectly.
 * **Touch Button Controls:** Supports an optional TTP223 touch sensor. Tap to instantly skip screens (or wake the display), and **Long Press** to lock/unlock auto-rotation to keep your favorite screen visible indefinitely.
 * **Smart Auto-Hide:** PC Monitor and PC Media screens can intelligently hide themselves and skip rotation when your PC is off, disconnected, or no media is playing.
@@ -172,6 +174,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 * Stock data provided by [Stooq](https://stooq.com/).
 * IP Geolocation by [ip-api](https://ip-api.com/).
 * Fiat Currency data provided by [fawazahmed0/currency-api](https://github.com/fawazahmed0/exchange-api).
+* Public Holidays data provided by [Nager.Date](https://date.nager.at/).
 
 ---
 
@@ -179,6 +182,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 | Version | Date | Key Changes |
 | :--- | :--- | :--- |
+| **v1.0.7** | *May 2026* | 📅 Added **Calendar & Holidays** screen (monthly grid, national public holidays, minimalist layout toggle). 🌍 Overhauled manual location entry with precise country/timezone selection. |
 | **v1.0.6** | *May 2026* | 🖨️ Added **Bambu 3D Printer** screen (auto-discovery, MQTT telemetry, smart Idle/Active layouts). 🌙 Enhanced **Night Mode** with "Dim then Turn Off" scheduling. |
 | **v1.0.5** | *Apr 2026* | 🎧 Added **PC Media** screen (Track, Artist, Album, Status). 👆 Added **Touch Button Controls** (Long press to lock/unlock auto-rotation). 👻 Added **Auto-hide** toggles to completely skip empty PC Monitor and Media screens. 🌐 Added local mDNS domain access (e.g., `tinytosh-XXXX.local`). |
 | **v1.0.4** | *Mar 2026* | 🖥️ **PC App Upgrade:** Added **Wireless Telemetry via Wi-Fi (mDNS)**, **Dynamic UI Rendering** that mirrors Web Panel functionality (update device settings and monitor current API data), and **Smart Connection Fallback** (instant USB-to-WiFi switching). <br>⚙️ **Firmware:** Added Universal Config Sync (saving settings via PC app), Smart IP Reporting via Serial, and Hardware Pairing Locks. |

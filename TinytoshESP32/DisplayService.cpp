@@ -128,6 +128,189 @@ void DisplayService::drawTimeScreen(const Config& config, String timeStr, String
     }
 }
 
+void DisplayService::drawCalendarScreen(const Config& config, const CalendarData& calendar) {
+    display.clearDisplay();
+
+    time_t now = time(nullptr);
+    struct tm timeinfo;
+    localtime_r(&now, &timeinfo);
+
+    int day = timeinfo.tm_mday;
+    int mon = timeinfo.tm_mon; 
+    int year = timeinfo.tm_year + 1900;
+    int wday = timeinfo.tm_wday; 
+
+    const char* months[] = {"JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"};
+    const char* weekdays[] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+
+    // 1. Check if Today is a Holiday
+    String todayHolidayName = "";
+    if (config.calendar_show_holidays) {
+        char todayBuf[16];
+        snprintf(todayBuf, sizeof(todayBuf), "%04d-%02d-%02d", year, mon + 1, day);
+        String todayStr = String(todayBuf);
+        for (int i = 0; i < calendar.count; i++) {
+            if (calendar.items[i].date == todayStr) {
+                todayHolidayName = calendar.items[i].name;
+                break;
+            }
+        }
+    }
+
+    // 2. Draw Main Text
+    int colWidth = config.calendar_minimal ? 128 : 57;
+
+    display.setTextColor(SSD1306_WHITE);
+    display.setTextWrap(false);
+    display.setFont(); 
+
+    int16_t x1, y1; uint16_t w, h;
+
+    display.setTextSize(3);
+    display.getTextBounds(String(day).c_str(), 0, 0, &x1, &y1, &w, &h);
+    display.setCursor((colWidth - w) / 2, 3);
+    display.print(day);
+
+    display.setTextSize(1);
+    display.getTextBounds(months[mon], 0, 0, &x1, &y1, &w, &h);
+    display.setCursor((colWidth - w) / 2, 29);
+    display.print(months[mon]);
+
+    display.getTextBounds(String(year).c_str(), 0, 0, &x1, &y1, &w, &h);
+    display.setCursor((colWidth - w) / 2, 53);
+    display.print(year);
+
+    if (todayHolidayName != "") {
+        display.setFont(&Picopixel);
+        
+        String lines[2] = {"", ""};
+        int l = 0, start = 0;
+        todayHolidayName.toUpperCase();
+        
+        while (start < todayHolidayName.length() && l < 2) {
+            int spaceIdx = todayHolidayName.indexOf(' ', start);
+            if (spaceIdx == -1) spaceIdx = todayHolidayName.length();
+            String word = todayHolidayName.substring(start, spaceIdx);
+            
+            String testLine = lines[l].length() == 0 ? word : lines[l] + " " + word;
+            display.getTextBounds(testLine.c_str(), 0, 0, &x1, &y1, &w, &h);
+            
+            if (w > colWidth) {
+                if (lines[l].length() == 0) { lines[l] = word; l++; }
+                else { l++; if (l < 2) lines[l] = word; }
+            } else {
+                lines[l] = testLine;
+            }
+            start = spaceIdx + 1;
+        }
+
+        int numLines = (lines[1].length() > 0) ? 2 : 1;
+        int cursorY = (numLines == 1) ? 47 : 44; 
+
+        for (int i = 0; i < numLines; i++) {
+            if (lines[i].length() > 0) {
+                display.getTextBounds(lines[i].c_str(), 0, 0, &x1, &y1, &w, &h);
+                bool truncated = false;
+                while (w > colWidth && lines[i].length() > 0) {
+                    lines[i] = lines[i].substring(0, lines[i].length() - 1);
+                    display.getTextBounds((lines[i] + ".").c_str(), 0, 0, &x1, &y1, &w, &h);
+                    truncated = true;
+                }
+                if (truncated) lines[i] += ".";
+
+                display.setCursor((colWidth - w) / 2, cursorY);
+                display.print(lines[i]);
+                cursorY += 6; 
+            }
+        }
+        display.setFont(); 
+    } else {
+        display.getTextBounds(weekdays[wday], 0, 0, &x1, &y1, &w, &h);
+        display.setCursor((colWidth - w) / 2, 41);
+        display.print(weekdays[wday]);
+    }
+
+    // 3. Stop if in Minimalistic Mode
+    if (config.calendar_minimal) return;
+
+    // 4. Right Column Grid Setup
+    int daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    if (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)) daysInMonth[1] = 29; 
+    int numDays = daysInMonth[mon];
+
+    int firstWday = (wday - ((day - 1) % 7) + 7) % 7; 
+    
+    bool isMondayFirst = (config.calendar_start_day == "mon");
+    int startCol = isMondayFirst ? ((firstWday + 6) % 7) : firstWday;
+
+    int totalCells = startCol + numDays;
+    int numLines = (totalCells + 6) / 7;
+
+    display.setFont(&Picopixel);
+    
+    const char* headersMon[] = {"M", "T", "W", "T", "F", "S", "S"};
+    const char* headersSun[] = {"S", "M", "T", "W", "T", "F", "S"};
+    const char** headers = isMondayFirst ? headersMon : headersSun;
+    
+    int colCenters[] = {62, 72, 82, 92, 102, 112, 122}; 
+    
+    for (int i = 0; i < 7; i++) {
+        display.getTextBounds(headers[i], 0, 0, &x1, &y1, &w, &h);
+        display.setCursor(colCenters[i] - (w / 2), 6);
+        display.print(headers[i]);
+    }
+    
+    int lineY = (numLines == 6) ? 8 : 9; 
+    display.drawLine(59, lineY, 126, lineY, SSD1306_WHITE); 
+
+    int rowY = (numLines == 6) ? 16 : 18; 
+    int rowSpacing = (numLines == 6) ? 9 : 10;
+
+    int currCol = startCol;
+
+    for (int d = 1; d <= numDays; d++) {
+        char dateBuf[16];
+        snprintf(dateBuf, sizeof(dateBuf), "%04d-%02d-%02d", year, mon + 1, d);
+        String dateStr = String(dateBuf);
+        
+        bool isHoliday = false;
+        if (config.calendar_show_holidays) {
+            for (int i = 0; i < calendar.count; i++) {
+                if (calendar.items[i].date == dateStr) {
+                    isHoliday = true;
+                    break;
+                }
+            }
+        }
+
+        int xCenter = colCenters[currCol];
+
+        if (isHoliday) {
+            display.fillRect(xCenter - 4, rowY - 5, 9, 7, SSD1306_WHITE);
+            display.setTextColor(SSD1306_BLACK); 
+        } else {
+            display.setTextColor(SSD1306_WHITE);
+        }
+
+        String dStr = String(d);
+        display.getTextBounds(dStr.c_str(), 0, 0, &x1, &y1, &w, &h);
+        display.setCursor(xCenter - (w / 2), rowY);
+        display.print(dStr);
+
+        display.setTextColor(SSD1306_WHITE); 
+
+        if (d == day) {
+            display.drawRect(xCenter - 5, rowY - 6, 11, 9, SSD1306_WHITE);
+        }
+
+        currCol++;
+        if (currCol > 6) {
+            currCol = 0;
+            rowY += rowSpacing;
+        }
+    }
+}
+
 void DisplayService::drawWeatherScreen(const Config& config, const WeatherData& data, const String& currentTime) {
     display.clearDisplay();
 
@@ -846,6 +1029,7 @@ bool DisplayService::isScreenEnabled(const AppState& state, int screenIndex) {
 
     switch (screenIndex) {
         case SCREEN_TIME:           return config.show_time;
+        case SCREEN_CALENDAR:       return config.show_calendar;
         case SCREEN_WEATHER:        return config.show_weather;
         case SCREEN_AIR_QUALITY:    return config.show_aqi;
         case SCREEN_STOCK:          return config.show_stock;
@@ -883,6 +1067,9 @@ void DisplayService::drawScreen(int screenIndex, const AppState& state, TimeServ
   switch(screenIndex) {
     case SCREEN_TIME:
       drawTimeScreen(state.config, timeService.getCurrentTimeShort(state.config.time_format), timeService.getFullDate());
+      break;
+    case SCREEN_CALENDAR:
+      drawCalendarScreen(state.config, state.calendar);
       break;
     case SCREEN_WEATHER:
       drawWeatherScreen(state.config, state.weather, timeService.getCurrentTimeShort(state.config.time_format));

@@ -84,9 +84,11 @@ void PcMonitorService::sendUpdateOverSerial(AppState &state) {
 
     // Pack Location & Night Mode
     doc["auto_detect"] = config.auto_detect ? 1 : 0;
-    doc["city"] = config.city;
     doc["latitude"] = config.latitude;
     doc["longitude"] = config.longitude;
+    doc["country"] = config.country;
+    doc["country_code"] = config.country_code;
+    doc["city"] = config.city;
     doc["timezone"] = config.timezone;
     doc["night_mode"] = config.night_mode ? 1 : 0;
     doc["night_start"] = config.night_start;
@@ -97,6 +99,9 @@ void PcMonitorService::sendUpdateOverSerial(AppState &state) {
     // Pack Screen Toggles
     doc["show_time"] = config.show_time ? 1 : 0;
     doc["date_display"] = config.date_display ? 1 : 0;
+    doc["show_calendar"] = config.show_calendar ? 1 : 0;
+    doc["cal_start"] = config.calendar_start_day;
+    doc["cal_hol"] = config.calendar_show_holidays ? 1 : 0;
     doc["show_weather"] = config.show_weather ? 1 : 0;
     doc["temp_unit"] = config.temp_unit;
     doc["round_temps"] = config.round_temps ? 1 : 0;
@@ -139,7 +144,9 @@ void PcMonitorService::sendUpdateOverSerial(AppState &state) {
     PcMedia& media = state.media;
     BambuData& bambu = state.bambu;
 
+    doc["cal_count"] = state.calendar.count;
     doc["update_time"] = weather.update_time;
+    
     if (!isnan(weather.temp)) {
         doc["temp"] = String(weather.temp, 1);
         doc["apparent_temperature"] = String(weather.apparent_temperature, 1);
@@ -230,10 +237,20 @@ bool PcMonitorService::parseConfigJson(const char* jsonString, AppState &state) 
     if (doc.containsKey("time_format")) config.time_format = doc["time_format"].as<String>();
     
     if (doc.containsKey("auto_detect")) config.auto_detect = doc["auto_detect"] == 1;
-    if (doc.containsKey("city")) config.city = doc["city"].as<String>();
     if (doc.containsKey("latitude")) config.latitude = doc["latitude"].as<float>();
     if (doc.containsKey("longitude")) config.longitude = doc["longitude"].as<float>();
+    if (doc.containsKey("country")) config.country = doc["country"].as<String>();
+    if (doc.containsKey("city")) config.city = doc["city"].as<String>();
     if (doc.containsKey("timezone")) config.timezone = doc["timezone"].as<String>();
+    if (doc.containsKey("country_code")) {
+        config.country_code = doc["country_code"].as<String>();
+        for (auto c : allCountries) {
+            if (config.country_code == String(c.code)) {
+                config.country = c.name;
+                break;
+            }
+        }
+    }
 
     if (doc.containsKey("night_mode")) config.night_mode = doc["night_mode"] == 1;
     if (doc.containsKey("night_start")) config.night_start = doc["night_start"].as<String>();
@@ -243,9 +260,16 @@ bool PcMonitorService::parseConfigJson(const char* jsonString, AppState &state) 
 
     if (doc.containsKey("show_time")) config.show_time = doc["show_time"] == 1;
     if (doc.containsKey("date_display")) config.date_display = doc["date_display"] == 1;
+
+    if (doc.containsKey("show_calendar")) config.show_calendar = doc["cal_mon"] == 1;
+    if (doc.containsKey("cal_start")) config.calendar_start_day = doc["cal_start"].as<String>();
+    if (doc.containsKey("cal_hol")) config.calendar_show_holidays = doc["cal_hol"] == 1;
+    if (doc.containsKey("cal_min")) config.calendar_minimal = doc["cal_min"] == 1;
+
     if (doc.containsKey("show_weather")) config.show_weather = doc["show_weather"] == 1;
     if (doc.containsKey("temp_unit")) config.temp_unit = doc["temp_unit"].as<String>();
     if (doc.containsKey("round_temps")) config.round_temps = doc["round_temps"] == 1;
+
     if (doc.containsKey("show_aqi")) config.show_aqi = doc["show_aqi"] == 1;
     if (doc.containsKey("aqi_type")) config.aqi_type = doc["aqi_type"].as<String>();
     
@@ -290,6 +314,9 @@ bool PcMonitorService::parseConfigJson(const char* jsonString, AppState &state) 
             }
         }
     }
+
+    state.calendar.updated = false;
+    state.calendar.count = 0;
 
     Serial.println("SYS_MSG:Settings Saved Successfully");
     return true;

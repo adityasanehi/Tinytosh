@@ -21,6 +21,7 @@ public:
     void drawCryptoScreen(const Config& config, const CryptoData& data);
     void drawCurrencyScreen(const Config& config, const CurrencyData& data);
     void drawStockScreen(const Config& config, const StockData& data);
+    void drawShopifyScreen(const Config& config, const ShopifyData& data);
     void drawPcScreen(const PcStats& pcStats);
     void drawMediaScreen(const PcMedia& media);
     void drawBambuScreen(const BambuData& bambu);

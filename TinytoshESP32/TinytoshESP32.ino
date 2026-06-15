@@ -14,6 +14,7 @@
 #include "CryptoService.h"
 #include "CurrencyService.h"
 #include "StockService.h"
+#include "ShopifyService.h"
 #include "PcMonitorService.h"
 #include "BambuService.h"
 
@@ -51,6 +52,7 @@ WebServerService webServerService(80, updateAllDataCallback);
 CryptoService cryptoService;
 CurrencyService currencyService;
 StockService stockService;
+ShopifyService shopifyService;
 PcMonitorService pcMonitorService;
 BambuService bambuService;
 
@@ -252,10 +254,17 @@ void updateAllData() {
     currencyService.fetchRate(String(appState.config.currency_base), String(appState.config.currency_target), appState.currency);
   }
 
-  // 9. Save Everything
+  // 9. Fetch Shopify Sales (Independent)
+  if (appState.config.show_shopify && appState.config.shopify_url.length() > 0) {
+    String storeName = appState.config.shopify_store_name.length() > 0 ? appState.config.shopify_store_name : "Sales";
+    displayService.showOLEDStatus({"\n", "\n", "Updating Shopify...", "\n", "Store:", storeName}, true);
+    shopifyService.fetchSales(appState.config, appState.shopify);
+  }
+
+  // 10. Save Everything
   configManager.saveConfig(appState.config);
 
-  // 10. Find the first enabled screen to show immediately
+  // 11. Find the first enabled screen to show immediately
   currentScreen = getFirstEnabledScreen();
   lastScreenSwitch = millis();
 }
@@ -381,6 +390,7 @@ void loop() {
     if (appState.config.show_crypto) cryptoService.fetchPrice(appState.config.crypto_id, appState.crypto);
     if (appState.config.show_currency) currencyService.fetchRate(appState.config.currency_base, appState.config.currency_target, appState.currency);
     if (appState.config.show_stock) stockService.fetchStock(appState.config.stock_symbol, appState.stock);
+    if (appState.config.show_shopify && appState.config.shopify_url.length() > 0) shopifyService.fetchSales(appState.config, appState.shopify);
     if (appState.config.show_calendar && appState.config.calendar_show_holidays && !appState.calendar.updated) calendarService.fetchHolidays(appState.config.country_code, appState.calendar);
     
     lastDataUpdate = millis();

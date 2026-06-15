@@ -26,6 +26,27 @@ void ConfigManager::loadConfig(Config& config) {
   size_t orderLen = preferences.getBytesLength("scr_order");
   if (orderLen == sizeof(config.screen_order)) {
     preferences.getBytes("scr_order", config.screen_order, sizeof(config.screen_order));
+  } else if (orderLen == sizeof(int) * 10) {
+    int oldOrder[10];
+    preferences.getBytes("scr_order", oldOrder, sizeof(oldOrder));
+    int idx = 0;
+    bool insertedShopify = false;
+
+    for (int i = 0; i < 10 && idx < NUM_SCREENS; i++) {
+      int screenId = oldOrder[i];
+      if (screenId >= SCREEN_SHOPIFY) screenId++;
+
+      config.screen_order[idx++] = screenId;
+
+      if (!insertedShopify && screenId == SCREEN_CURRENCY && idx < NUM_SCREENS) {
+        config.screen_order[idx++] = SCREEN_SHOPIFY;
+        insertedShopify = true;
+      }
+    }
+
+    if (!insertedShopify && idx < NUM_SCREENS) {
+      config.screen_order[idx++] = SCREEN_SHOPIFY;
+    }
   }
 
   config.show_time = preferences.getBool("show_time", true);
@@ -35,6 +56,7 @@ void ConfigManager::loadConfig(Config& config) {
   config.show_stock = preferences.getBool("show_stock", true);
   config.show_crypto = preferences.getBool("show_crypto", true);
   config.show_currency = preferences.getBool("show_curr", true);
+  config.show_shopify = preferences.getBool("show_shop", false);
   config.show_pc = preferences.getBool("show_pc", true);
   config.show_media = preferences.getBool("show_media", true);
   config.show_bambu = preferences.getBool("show_bambu", true);
@@ -62,6 +84,11 @@ void ConfigManager::loadConfig(Config& config) {
   config.crypto_fn = preferences.getBool("crypto_fn", true);
   config.currency_fn = preferences.getBool("cur_fn", true);
   config.stock_fn = preferences.getBool("stock_fn", true);
+
+  // Shopify Settings
+  config.shopify_url = preferences.getString("shop_url", "");
+  config.shopify_store_name = preferences.getString("shop_store", "Shopify");
+  config.shopify_fn = preferences.getBool("shop_fn", true);
 
   // Animation Settings
   config.anim_mask = preferences.getUShort("anim_mask", 62);
@@ -110,6 +137,7 @@ void ConfigManager::saveConfig(const Config& config) {
   preferences.putBool("show_stock", config.show_stock);
   preferences.putBool("show_crypto", config.show_crypto);
   preferences.putBool("show_curr", config.show_currency);
+  preferences.putBool("show_shop", config.show_shopify);
   preferences.putBool("show_pc", config.show_pc);
   preferences.putBool("show_media", config.show_media);
   preferences.putBool("show_bambu", config.show_bambu);
@@ -137,6 +165,11 @@ void ConfigManager::saveConfig(const Config& config) {
   preferences.putBool("crypto_fn", config.crypto_fn);
   preferences.putBool("cur_fn", config.currency_fn);
   preferences.putBool("stock_fn", config.stock_fn);
+
+  // Shopify Settings
+  preferences.putString("shop_url", config.shopify_url);
+  preferences.putString("shop_store", config.shopify_store_name);
+  preferences.putBool("shop_fn", config.shopify_fn);
 
   // Animation Settings
   preferences.putUShort("anim_mask", config.anim_mask);

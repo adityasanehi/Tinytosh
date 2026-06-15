@@ -657,6 +657,71 @@ void DisplayService::drawStockScreen(const Config& config, const StockData& data
     display.print(trendPrefix + String(data.percent_change, 1) + "%");
 }
 
+void DisplayService::drawShopifyScreen(const Config& config, const ShopifyData& data) {
+    if (!data.updated || isnan(data.total_sales) || data.currency.length() == 0) {
+        drawInfoScreen(nullptr, "No Data");
+        return;
+    }
+
+    display.clearDisplay();
+
+    display.setTextColor(SSD1306_WHITE);
+    display.setTextWrap(false);
+    display.setTextSize(1);
+    display.setFont();
+
+    // 1. Sales total
+    String amount = String(data.total_sales, data.total_sales < 1000.0 ? 2 : 0);
+    if (amount.length() > 8 && data.total_sales >= 1000.0) {
+        amount = String(data.total_sales / 1000.0, data.total_sales < 100000.0 ? 1 : 0) + "K";
+    }
+
+    display.setTextSize(3);
+    display.setCursor(4, 6);
+    display.print(amount);
+
+    display.setTextSize(1);
+    display.setCursor(4, 32);
+    display.print(data.currency);
+
+    // 2. Store name
+    if (config.shopify_fn) {
+        String displayName = data.store.length() > 0 ? data.store : config.shopify_store_name;
+        if (displayName.length() == 0) displayName = "Shopify";
+        int maxLen = 20;
+        if (displayName.length() > maxLen) displayName = displayName.substring(0, maxLen - 3) + "...";
+        displayName.toUpperCase();
+        display.setCursor(4, 42);
+        display.print(displayName);
+    }
+
+    // 3. Orders and period
+    String orders = String(data.order_count) + " orders";
+    String period = data.period;
+    period.toUpperCase();
+    if (period.length() > 10) period = period.substring(0, 10);
+
+    display.setTextSize(1);
+    display.setCursor(4, 54);
+    display.print(orders);
+
+    int16_t x1, y1;
+    uint16_t w, h;
+    display.getTextBounds(period.c_str(), 0, 0, &x1, &y1, &w, &h);
+    display.setCursor(128 - w - 4, 54);
+    display.print(period);
+
+    // 4. Arrow & Percentage
+    bool isPositive = (data.percent_change >= 0);
+    const unsigned char* arrowIcon = isPositive ? icon_arrow_up : icon_arrow_down;
+    display.drawBitmap(102, 3, arrowIcon, 15, 15, 1);
+
+    display.setTextSize(1);
+    display.setCursor(95, 22);
+    String trendPrefix = isPositive ? "+" : "";
+    display.print(trendPrefix + String(data.percent_change, 1) + "%");
+}
+
 void DisplayService::drawPcScreen(const PcStats& pcStats) {
     bool isInvalid = (isnan(pcStats.cpu_percent) || pcStats.cpu_percent == 0) && (isnan(pcStats.mem_percent) || pcStats.mem_percent == 0); 
 
@@ -1035,6 +1100,7 @@ bool DisplayService::isScreenEnabled(const AppState& state, int screenIndex) {
         case SCREEN_STOCK:          return config.show_stock;
         case SCREEN_CRYPTO:         return config.show_crypto;
         case SCREEN_CURRENCY:       return config.show_currency;
+        case SCREEN_SHOPIFY:        return config.show_shopify;
         case SCREEN_PC_MONITOR: {
             if (!config.show_pc) return false;
             if (config.hide_empty_pc) {
@@ -1085,6 +1151,9 @@ void DisplayService::drawScreen(int screenIndex, const AppState& state, TimeServ
       break;
     case SCREEN_CURRENCY:
       drawCurrencyScreen(state.config, state.currency);
+      break;
+    case SCREEN_SHOPIFY:
+      drawShopifyScreen(state.config, state.shopify);
       break;
     case SCREEN_PC_MONITOR:
       drawPcScreen(state.pc);

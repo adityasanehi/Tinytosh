@@ -11,6 +11,7 @@ enum ScreenType {
   SCREEN_STOCK,
   SCREEN_CRYPTO,
   SCREEN_CURRENCY,
+  SCREEN_SHOPIFY,
   SCREEN_PC_MONITOR,
   SCREEN_PC_MEDIA,
   SCREEN_BAMBU,
@@ -25,6 +26,7 @@ inline constexpr const char* SCREEN_NAMES[] = {
   "Stock Tracking",
   "Crypto Tracking",
   "Currency Exchange",
+  "Shopify Sales",
   "PC Monitor",
   "PC Media",
   "Printer Info"
@@ -66,7 +68,7 @@ struct Config {
   // Screens Settings
   bool screen_auto_cycle = true;
   int screen_interval_sec = 15;
-  int screen_order[NUM_SCREENS] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+  int screen_order[NUM_SCREENS] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 
   bool show_time = true;
   bool show_calendar = true;
@@ -75,6 +77,7 @@ struct Config {
   bool show_stock = true;
   bool show_crypto = true;
   bool show_currency = true;
+  bool show_shopify = false;
   bool show_pc = true;
   bool show_media = true;
   bool show_bambu = true;
@@ -102,6 +105,11 @@ struct Config {
   bool crypto_fn = true;
   bool currency_fn = true;
   bool stock_fn = true;
+
+  // Shopify Sales Settings
+  String shopify_url = "";
+  String shopify_store_name = "Shopify";
+  bool shopify_fn = true;
 
   // Printer Settings
   String bambu_ip = "";
@@ -165,6 +173,16 @@ struct CurrencyData {
   String target;
   float rate;
   String date;
+  bool updated = false;
+};
+
+struct ShopifyData {
+  String store;
+  String currency;
+  float total_sales = NAN;
+  int order_count = 0;
+  float percent_change = 0.0;
+  String period = "today";
   bool updated = false;
 };
 
@@ -431,6 +449,7 @@ struct AppState {
   CryptoData crypto;
   CurrencyData currency;
   StockData stock;
+  ShopifyData shopify;
   PcStats pc;
   PcMedia media;
   BambuData bambu;

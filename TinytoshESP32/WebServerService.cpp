@@ -86,6 +86,7 @@ void WebServerService::handleRoot() {
   CryptoData& crypto = state->crypto;
   CurrencyData& currency = state->currency;
   StockData& stock = state->stock;
+  ShopifyData& shopify = state->shopify;
   PcStats& pc = state->pc;
   PcMedia& media = state->media;
   
@@ -95,6 +96,7 @@ void WebServerService::handleRoot() {
   bool cryptoValid = !isnan(crypto.price_usd) && crypto.price_usd > 0;
   bool currencyValid = currency.updated;
   bool stockValid = stock.updated;
+  bool shopifyValid = shopify.updated;
 
   add("<html><head><title>Tinytosh | Web Panel</title>");
   add("<meta name='viewport' content='width=device-width, initial-scale=1'><meta charset='UTF-8'>");
@@ -267,7 +269,8 @@ void WebServerService::handleRoot() {
   add("<p class='help-text mt-0' style='margin-bottom: 15px;'>Drag and drop to rearrange. Disabled screens are locked at the bottom.</p>");
   add("<ul id='sortable-list' class='sortable-list'>");
   
-  for (int screenId = 0; screenId < NUM_SCREENS; screenId++) {
+  for (int i = 0; i < NUM_SCREENS; i++) {
+    int screenId = config.screen_order[i];
     String targetId = "";
     switch(screenId) {
       case SCREEN_TIME: targetId = "showTime"; break;
@@ -276,6 +279,7 @@ void WebServerService::handleRoot() {
       case SCREEN_AIR_QUALITY: targetId = "showAQI"; break;
       case SCREEN_CRYPTO: targetId = "showCrypto"; break;
       case SCREEN_CURRENCY: targetId = "showCurrency"; break;
+      case SCREEN_SHOPIFY: targetId = "showShopify"; break;
       case SCREEN_STOCK: targetId = "showStock"; break;
       case SCREEN_PC_MONITOR: targetId = "showPc"; break;
       case SCREEN_PC_MEDIA: targetId = "showMedia"; break;
@@ -486,6 +490,31 @@ void WebServerService::handleRoot() {
               break;
           }
 
+          case SCREEN_SHOPIFY: {
+              add("<div class='panel' id='panel-" + String(screenId) + "'>");
+              add("<label class='checkbox-label mt-0'><input type='checkbox' id='showShopify' name='show_shopify' value='1' " + String(config.show_shopify ? "checked" : "") + "> Shopify Sales Screen</label>");
+              add("<div id='shopifyContent' class='collapsible'>");
+
+              if (!shopifyValid) {
+                  add("<div id='shopify-no-data' class='no-data-tile'>🛍️ Shopify sales data will be available after sync</div><div id='shopify-grid' class='hidden'>");
+              } else {
+                  add("<div id='shopify-no-data' class='no-data-tile hidden'>🛍️ Shopify sales data will be available after sync</div><div id='shopify-grid'>");
+              }
+
+              add("<div class='dashboard-grid'>");
+              add("<div class='tile'><div class='tile-icon'>🛍️</div><div class='tile-value' id='shopify-sales'>" + shopify.currency + " " + String(shopify.total_sales, 2) + "</div><div class='tile-label' id='shopify-period'>" + shopify.period + " Sales</div></div>");
+              add("<div class='tile'><div class='tile-icon'>📦</div><div class='tile-value' id='shopify-orders'>" + String(shopify.order_count) + "</div><div class='tile-label'>Orders</div></div>");
+              add("<div class='tile'><div class='tile-icon' id='shopify-trend-icon'>" + String(shopify.percent_change >= 0 ? "📈" : "📉") + "</div><div class='tile-value' id='shopify-change'>" + String(shopify.percent_change, 1) + "%</div><div class='tile-label'>Trend</div></div>");
+              add("</div><div class='update-footer' id='shopify-upd'>Last Update: " + weather.update_time + "</div></div>");
+
+              add("<label>Endpoint URL:</label><input type='text' name='shopify_url' placeholder='https://example.com/shopify-sales?token=...' value='" + config.shopify_url + "'>");
+              add("<p class='help-text mt-0'>Paste the full HTTPS endpoint URL. Required JSON fields: total_sales and currency.</p>");
+              add("<label>Display Name:</label><input type='text' name='shopify_store' value='" + config.shopify_store_name + "'>");
+              add("<label class='checkbox-label'><input type='checkbox' name='shopify_fn' value='1' " + String(config.shopify_fn ? "checked" : "") + "> Display Store Name</label>");
+              add("</div></div>");
+              break;
+          }
+
           case SCREEN_PC_MONITOR: {
               add("<div class='panel' id='panel-" + String(screenId) + "'>");
               add("<label class='checkbox-label mt-0'><input type='checkbox' id='showPc' name='show_pc' value='1' " + String(config.show_pc ? "checked" : "") + "> PC Monitoring Screen</label>");
@@ -570,7 +599,7 @@ void WebServerService::handleRoot() {
   add("<script>");
   add("let formDirty = false;");
   add("function updateVisibility(){");
-  add("  var pairs = [['autoDetect','manualFields',true], ['nightMode','nightFields',false], ['showTime', 'timeContent',false], ['showCalendar', 'calendarContent',false], ['showWeather','weatherContent',false], ['showPc','pcContent',false], ['showCrypto','cryptoContent',false], ['showCurrency','currencyContent',false], ['showStock','stockContent',false], ['showAQI','aqiContent',false], ['showMedia','mediaContent',false], ['showBambu','bambuContent',false]];");  
+  add("  var pairs = [['autoDetect','manualFields',true], ['nightMode','nightFields',false], ['showTime', 'timeContent',false], ['showCalendar', 'calendarContent',false], ['showWeather','weatherContent',false], ['showPc','pcContent',false], ['showCrypto','cryptoContent',false], ['showCurrency','currencyContent',false], ['showStock','stockContent',false], ['showShopify','shopifyContent',false], ['showAQI','aqiContent',false], ['showMedia','mediaContent',false], ['showBambu','bambuContent',false]];");  
   add("  pairs.forEach(p => {");
   add("    var ch = document.getElementById(p[0]); if(!ch) return;");
   add("    var target = document.getElementById(p[1]);");
@@ -592,7 +621,7 @@ void WebServerService::handleRoot() {
   add("document.getElementById('nightActionSelect').addEventListener('change', updateNightAction);");
   add("updateNightAction();");
   
-  add("['autoDetect', 'nightMode', 'showTime', 'showCalendar', 'showWeather', 'showPc', 'showCrypto', 'showCurrency', 'showStock', 'showAQI', 'showMedia', 'showBambu', 'autoCycle'].forEach(id => { var el=document.getElementById(id); if(el) el.addEventListener('change', updateVisibility); });");
+  add("['autoDetect', 'nightMode', 'showTime', 'showCalendar', 'showWeather', 'showPc', 'showCrypto', 'showCurrency', 'showStock', 'showShopify', 'showAQI', 'showMedia', 'showBambu', 'autoCycle'].forEach(id => { var el=document.getElementById(id); if(el) el.addEventListener('change', updateVisibility); });");
   add("updateVisibility();");
 
   add("const countryGreetings = {");
@@ -690,7 +719,7 @@ void WebServerService::handleRoot() {
   add("  reorderPhysicalPanels(orderInput.value);");
   add("}");
 
-  add("const panelCheckboxes = ['showTime', 'showCalendar', 'showWeather', 'showAQI', 'showCrypto', 'showCurrency', 'showStock', 'showPc', 'showMedia', 'showBambu'];");
+  add("const panelCheckboxes = ['showTime', 'showCalendar', 'showWeather', 'showAQI', 'showCrypto', 'showCurrency', 'showStock', 'showShopify', 'showPc', 'showMedia', 'showBambu'];");
   add("panelCheckboxes.forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('change', syncScreenOrder); });");
 
   add("function getDragAfterEl(y) {");
@@ -805,6 +834,11 @@ void WebServerService::handleRoot() {
   add("    setVal('currency_multiplier', d.currency_multiplier);");
   add("    setCb('currency_fn', d.currency_fn, true);");
 
+  add("    setCb('showShopify', d.show_shopify);");
+  add("    setVal('shopify_url', d.shopify_url);");
+  add("    setVal('shopify_store', d.shopify_store);");
+  add("    setCb('shopify_fn', d.shopify_fn, true);");
+
   add("    setCb('showMedia', d.show_media);");
 
   add("    setCb('showBambu', d.show_bambu);");
@@ -888,6 +922,16 @@ void WebServerService::handleRoot() {
   add("    set('stock-upd', 'Last Update: ' + d.update_time);");
   add("  } else { hide('stock-no-data', false); hide('stock-grid', true); }");
 
+  add("  if (d.shopify_sales !== undefined && d.shopify_sales !== 'nan') {");
+  add("    if (!set('shopify-sales', d.shopify_currency + ' ' + d.shopify_sales)) { location.reload(); return; }");
+  add("    hide('shopify-no-data', true); hide('shopify-grid', false);");
+  add("    set('shopify-orders', d.shopify_orders);");
+  add("    set('shopify-change', d.shopify_change + '%');");
+  add("    set('shopify-trend-icon', parseFloat(d.shopify_change) >= 0 ? '📈' : '📉');");
+  add("    set('shopify-period', d.shopify_period + ' Sales');");
+  add("    set('shopify-upd', 'Last Update: ' + d.update_time);");
+  add("  } else { hide('shopify-no-data', false); hide('shopify-grid', true); }");
+
   add("  if (d.pc_cpu !== undefined && d.pc_cpu !== '0.00' && d.pc_cpu !== '0') {");
   add("    if (!set('pc-cpu', Math.round(parseFloat(d.pc_cpu)) + '%')) { location.reload(); return; }");
   add("    hide('pc-no-data', true); hide('pc-grid', false);");
@@ -930,6 +974,7 @@ void WebServerService::handleSave() {
   CryptoData& crypto = state->crypto;
   CurrencyData& currency = state->currency;
   StockData& stock = state->stock;
+  ShopifyData& shopify = state->shopify;
   PcStats& pc = state->pc;
   PcMedia& media = state->media;
 
@@ -946,6 +991,7 @@ void WebServerService::handleSave() {
   config.show_pc = server.hasArg("show_pc");
   config.show_currency = server.hasArg("show_currency");
   config.show_stock = server.hasArg("show_stock");
+  config.show_shopify = server.hasArg("show_shopify");
   config.show_media = server.hasArg("show_media");
   config.show_bambu = server.hasArg("show_bambu");
 
@@ -983,6 +1029,7 @@ void WebServerService::handleSave() {
   if (config.show_crypto) config.crypto_fn = server.hasArg("crypto_fn");
   if (config.show_currency) config.currency_fn = server.hasArg("currency_fn");
   if (config.show_stock) config.stock_fn = server.hasArg("stock_fn");
+  if (config.show_shopify) config.shopify_fn = server.hasArg("shopify_fn");
 
   // 2. Persistent Settings: Only update if the arg is present 
   if (server.hasArg("time_format")) config.time_format = server.arg("time_format");
@@ -1013,6 +1060,14 @@ void WebServerService::handleSave() {
   // Stock Settings
   if (server.hasArg("stock_symbol")) {
       config.stock_symbol = server.arg("stock_symbol");
+  }
+
+  // Shopify Settings
+  if (server.hasArg("shopify_url")) {
+    config.shopify_url = server.arg("shopify_url");
+  }
+  if (server.hasArg("shopify_store")) {
+    config.shopify_store_name = server.arg("shopify_store");
   }
 
   if (server.hasArg("bambu_ip")) {
@@ -1085,6 +1140,13 @@ void WebServerService::handleSave() {
     stock.updated = false;
   }
 
+  if (!config.show_shopify) {
+    shopify.total_sales = NAN;
+    shopify.order_count = 0;
+    shopify.percent_change = 0.0;
+    shopify.updated = false;
+  }
+
   if (!config.show_media) {
     media.status = "stopped";
     media.name = "";
@@ -1108,11 +1170,12 @@ void WebServerService::handleUpdate() {
   CryptoData& crypto = state->crypto;
   CurrencyData& currency = state->currency;
   StockData& stock = state->stock;
+  ShopifyData& shopify = state->shopify;
   PcStats& pc = state->pc;
   PcMedia& media = state->media;
   BambuData bambu = state->bambu;
 
-  DynamicJsonDocument doc(3072); 
+  DynamicJsonDocument doc(4096); 
   
   // Global Settings
   doc["device_id"] = config.device_id;
@@ -1175,6 +1238,11 @@ void WebServerService::handleUpdate() {
   doc["currency_multiplier"] = config.currency_multiplier;
   doc["currency_fn"] = config.currency_fn ? 1 : 0;
 
+  doc["show_shopify"] = config.show_shopify ? 1 : 0;
+  doc["shopify_url"] = config.shopify_url;
+  doc["shopify_store"] = config.shopify_store_name;
+  doc["shopify_fn"] = config.shopify_fn ? 1 : 0;
+
   doc["show_bambu"] = config.show_bambu ? 1 : 0;
 
   doc["bambu_ip"] = config.bambu_ip;
@@ -1236,6 +1304,15 @@ void WebServerService::handleUpdate() {
     doc["stock_symbol"] = stock.symbol;
     doc["stock_price"] = String(stock.price, 2);
     doc["stock_change"] = String(stock.percent_change, 2);
+  }
+
+  if (shopify.updated && !isnan(shopify.total_sales) && shopify.currency.length() > 0) {
+    doc["shopify_store_live"] = shopify.store;
+    doc["shopify_currency"] = shopify.currency;
+    doc["shopify_sales"] = String(shopify.total_sales, 2);
+    doc["shopify_orders"] = shopify.order_count;
+    doc["shopify_change"] = String(shopify.percent_change, 1);
+    doc["shopify_period"] = shopify.period;
   }
 
   if (pc.cpu_percent > 0.1) {

@@ -70,7 +70,7 @@ void PcMonitorService::parseJson(const char* jsonString, AppState &state) {
 }
 
 void PcMonitorService::sendUpdateOverSerial(AppState &state) {
-    DynamicJsonDocument doc(3072);
+    DynamicJsonDocument doc(4096);
     Config& config = state.config;
 
     // Pack Global Settings
@@ -119,6 +119,10 @@ void PcMonitorService::sendUpdateOverSerial(AppState &state) {
     doc["currency_target"] = config.currency_target;
     doc["currency_multiplier"] = config.currency_multiplier;
     doc["currency_fn"] = config.currency_fn ? 1 : 0;
+    doc["show_shopify"] = config.show_shopify ? 1 : 0;
+    doc["shopify_url"] = config.shopify_url;
+    doc["shopify_store"] = config.shopify_store_name;
+    doc["shopify_fn"] = config.shopify_fn ? 1 : 0;
     doc["show_media"] = config.show_media ? 1 : 0;
     doc["show_bambu"] = config.show_bambu ? 1 : 0;
     doc["bambu_ip"] = config.bambu_ip;
@@ -140,6 +144,7 @@ void PcMonitorService::sendUpdateOverSerial(AppState &state) {
     CryptoData& crypto = state.crypto;
     CurrencyData& currency = state.currency;
     StockData& stock = state.stock;
+    ShopifyData& shopify = state.shopify;
     PcStats& pc = state.pc;
     PcMedia& media = state.media;
     BambuData& bambu = state.bambu;
@@ -181,6 +186,14 @@ void PcMonitorService::sendUpdateOverSerial(AppState &state) {
         doc["stock_change"] = String(stock.percent_change, 2);
     }
 
+    if (shopify.updated && !isnan(shopify.total_sales) && shopify.currency.length() > 0) {
+        doc["shopify_currency"] = shopify.currency;
+        doc["shopify_sales"] = String(shopify.total_sales, 2);
+        doc["shopify_orders"] = shopify.order_count;
+        doc["shopify_change"] = String(shopify.percent_change, 1);
+        doc["shopify_period"] = shopify.period;
+    }
+
     if (pc.cpu_percent > 0.1) {
         doc["pc_cpu"] = String(pc.cpu_percent);
         doc["pc_net"] = String(pc.net_down_kb);
@@ -220,7 +233,7 @@ void PcMonitorService::sendUpdateOverSerial(AppState &state) {
 }
 
 bool PcMonitorService::parseConfigJson(const char* jsonString, AppState &state) {
-    DynamicJsonDocument doc(2048);
+    DynamicJsonDocument doc(4096);
     DeserializationError error = deserializeJson(doc, jsonString);
     
     if (error) {
@@ -287,6 +300,11 @@ bool PcMonitorService::parseConfigJson(const char* jsonString, AppState &state) 
     if (doc.containsKey("currency_target")) config.currency_target = doc["currency_target"].as<String>();
     if (doc.containsKey("currency_multiplier")) config.currency_multiplier = doc["currency_multiplier"];
     if (doc.containsKey("currency_fn")) config.currency_fn = doc["currency_fn"] == 1;
+
+    if (doc.containsKey("show_shopify")) config.show_shopify = doc["show_shopify"] == 1;
+    if (doc.containsKey("shopify_url")) config.shopify_url = doc["shopify_url"].as<String>();
+    if (doc.containsKey("shopify_store")) config.shopify_store_name = doc["shopify_store"].as<String>();
+    if (doc.containsKey("shopify_fn")) config.shopify_fn = doc["shopify_fn"] == 1;
 
     if (doc.containsKey("show_media")) config.show_media = doc["show_media"] == 1;
 

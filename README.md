@@ -28,21 +28,24 @@
 * 📅 **Calendar & Holidays:** Displays the current date, a full monthly grid, and tracks national public holidays based on your country.
 * 🌤️ **Weather Station:** Live Temperature, Humidity, and Forecasts (via Open-Meteo).
 * 🍃 **Air Quality:** Monitor local AQI levels (US & EU Standards).
-* 📊 **Stock Tracker:** Track market data for ~100 top global assets, ETFs, and Mega-Cap Tech with daily trend indicators.
-* 📈 **Crypto Tracker:** Watch your favorite coin (from top 75 global cryptos) with price and trend indicators.
-* 💱 **Currency Tracker:** Track exchange rates for over 150 fiat currency pairs with custom scaling multipliers.
+* ☀️ **Daylight Info:** Tracks sunrise, sunset, solar noon, and day length.
+* 📊 **Stock Tracker:** Track market data for **up to 5** global assets, ETFs, and Mega-Cap Tech at once with daily trend indicators.
+* 📈 **Crypto Tracker:** Watch **up to 5** of your favorite coins (from top 75 global cryptos) with price and trend indicators.
+* 💱 **Currency Tracker:** Track exchange rates for **up to 5** fiat currency pairs with custom scaling multipliers.
 * 🖥️ **PC Hardware Monitor:** Connects via **USB** or **Wirelessly** to your Windows/Mac/Linux computer to show CPU Load, RAM Usage, and Network Speeds in real-time!
 * 🎧 **PC Media:** Displays currently playing track, artist, album, and playback status streamed directly from your connected computer.
 * 🖨️ **Bambu 3D Printer:** Local network telemetry for your Bambu Lab printer (progress, temperatures, fans, and print status) featuring smart layouts for IDLE and PRINTING modes.
 
 ### ✨ Key Features
 * **Modular Dashboard:** Enable/Disable screens on the fly via a Web Panel or PC App. 
+* **🎨 OLED Theme Engine:** Procedural design system. Pick 4 base colors, and the engine automatically calculates all hover states, UI borders, and muted text tones for both the Web Panel and PC app!
+* **🔌 Hardware Setup:** Customize your I2C and Touch pinout directly from the Web Panel without touching the code.
 * **Smart Location:** Auto-detect your location via IP or manually set your exact coordinates, country, and native timezone.
 * **Drag & Drop Reordering:** Fully customize your display sequence. Grab and drag screens to change their order. The configuration UI dynamically rearranges itself to match your custom layout perfectly.
 * **Touch Button Controls:** Supports an optional TTP223 touch sensor. Tap to instantly skip screens (or wake the display), and **Long Press** to lock/unlock auto-rotation to keep your favorite screen visible indefinitely.
 * **Smart Auto-Hide:** PC Monitor and PC Media screens can intelligently hide themselves and skip rotation when your PC is off, disconnected, or no media is playing.
 * **Night Mode & Power Saving:** Set a quiet schedule to minimize sleep distractions. Choose between *Dim Display*, *Turn Display Off*, or *Dim then Turn Off* (featuring an extra time picker for gradual dimming). Features "Smart Latching" (waits for the primary screen before sleeping), 10x slower background API fetching to save power, and a temporary 30-second wake feature via the physical button.
-* **Zero Config APIs:** Uses free public APIs for Stocks, Crypto, Currency, Weather, and Air Quality. No API keys required.
+* **Zero Config APIs:** Uses free public APIs. No API keys required.
 * **Privacy First:** No accounts, no cloud tracking. Everything runs locally on the ESP32.
 
 ![Interface Demo](img/web_panel_demo.gif)
@@ -57,12 +60,11 @@ For developers, makers, and the curious, here is how the magic happens. The proj
 *Written in C++ using the Arduino Framework.*
 
 The firmware is designed to be **non-blocking** and **modular**.
-* **Universal Config Sync:** The device hosts its own Web Server, but also accepts and instantly applies full configuration payloads over the PC Serial/USB connection.
+* **⚡ Async RTOS:** Employs background FreeRTOS tasks to fetch API data asynchronously. The display and animations stay buttery smooth at 60fps without ever freezing to download data.
+* **Universal Config Sync:** The device uses a unified JSON configuration payload, allowing it to instantly accept and apply settings over the local Web Server or via the PC Serial/USB connection.
 * **mDNS Support:** Easily access the device's Web Panel without memorizing IPs using its unique local domain (e.g., `http://tinytosh-ab12.local`).
 * **Hardware Pairing Lock:** Telemetry streams are protected. Tinytosh securely pairs to the active PC to ensure multiple computers on the same network don't fight over the display.
 * **Dynamic Rendering:** The `DisplayService` handles the OLED. It supports "partial screen buffering," allowing for complex transition effects (like dissolving pixels or sliding curtains) without needing a massive frame buffer.
-* **Smart Wifi Manager:** Uses a Captive Portal for initial setup. If WiFi drops, it auto-reconnects without freezing the UI.
-* **Preference Storage:** Configuration is saved to the ESP32's Non-Volatile Storage (NVS) using a custom bitmask system for efficiency.
 
 #### 🏗️ Build & Compile Guide
 
@@ -88,7 +90,7 @@ build_flags =
     -D ARDUINO_USB_MODE=1
     -D ARDUINO_USB_CDC_ON_BOOT=1
 lib_deps =
-    https://github.com/tzapu/WiFiManager.git
+    [https://github.com/tzapu/WiFiManager.git](https://github.com/tzapu/WiFiManager.git)
     bblanchon/ArduinoJson @ ^6.21.0
     adafruit/Adafruit SSD1306 @ ^2.5.7
     adafruit/Adafruit GFX Library @ ^1.11.5
@@ -171,10 +173,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 * Weather and AQI data provided by [Open-Meteo](https://open-meteo.com/).
 * Crypto data provided by [CoinLore](https://www.coinlore.com/cryptocurrency-data-api).
-* Stock data provided by [Stooq](https://stooq.com/).
+* Stock data provided by [Yahoo Finance](https://finance.yahoo.com/).
 * IP Geolocation by [ip-api](https://ip-api.com/).
 * Fiat Currency data provided by [fawazahmed0/currency-api](https://github.com/fawazahmed0/exchange-api).
 * Public Holidays data provided by [Nager.Date](https://date.nager.at/).
+* Daylight data provided by [Sunrise-Sunset](https://sunrise-sunset.org/).
 
 ---
 
@@ -182,6 +185,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 | Version | Date | Key Changes |
 | :--- | :--- | :--- |
+| **v1.1.0** | *Jun 2026* | 🌟 The Architecture & UI/UX Update (Major Release): ☀️ Added **Daylight Info** screen to track solar positioning. 🎨 Introduced **OLED Theme Engine** for procedural 4-color UI generation on Web and PC. 🔌 Added custom hardware pin assignment in Web Panel. 📈 Expanded Stocks, Crypto, and Currency trackers to support up to 5 rotating items. ⚙️ **Firmware Overhaul:** Unified JSON configuration architecture for instant 2-way sync, plus completely rebuilt background data fetching for stutter-free UX. 🖥️ **PC App Upgrade:** New port connection engine, integrated live USB device logs terminal, and fixed other issues. |
 | **v1.0.7** | *May 2026* | 📅 Added **Calendar & Holidays** screen (monthly grid, national public holidays, minimalist layout toggle). 🌍 Overhauled manual location entry with precise country/timezone selection. |
 | **v1.0.6** | *May 2026* | 🖨️ Added **Bambu 3D Printer** screen (auto-discovery, MQTT telemetry, smart Idle/Active layouts). 🌙 Enhanced **Night Mode** with "Dim then Turn Off" scheduling. |
 | **v1.0.5** | *Apr 2026* | 🎧 Added **PC Media** screen (Track, Artist, Album, Status). 👆 Added **Touch Button Controls** (Long press to lock/unlock auto-rotation). 👻 Added **Auto-hide** toggles to completely skip empty PC Monitor and Media screens. 🌐 Added local mDNS domain access (e.g., `tinytosh-XXXX.local`). |

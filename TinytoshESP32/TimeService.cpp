@@ -45,12 +45,21 @@ bool TimeService::fetchLocationData(Config& config) {
 }
 
 String TimeService::lookupPosixTimezone(const String& ianaTimezone) {
-  DynamicJsonDocument doc(6144); 
-  DeserializationError error = deserializeJson(doc, POSIX_TIMEZONE_MAP); 
-  if (!error) {
-    if (doc.containsKey(ianaTimezone)) {
-      return doc[ianaTimezone].as<String>();
-    } 
+  String needle = "\"" + ianaTimezone + "\":";
+  const char* match = strstr(POSIX_TIMEZONE_MAP, needle.c_str());
+  if (match) {
+    const char* valueStart = match + needle.length();
+    while (*valueStart == ' ' || *valueStart == '\t') valueStart++;
+    if (*valueStart == '"') {
+      valueStart++;
+      const char* valueEnd = strchr(valueStart, '"');
+      if (valueEnd) {
+        String timezone;
+        timezone.reserve(valueEnd - valueStart);
+        for (const char* p = valueStart; p < valueEnd; p++) timezone += *p;
+        return timezone;
+      }
+    }
   }
   return "GMT0";
 }
@@ -115,10 +124,73 @@ String TimeService::getCurrentTime(String format) {
 }
 
 String TimeService::getFullDate() {
-    struct tm timeinfo;
-    if (!getLocalTime(&timeinfo)) return "No Date";
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) return "No Date";
+  
+  char buffer[32];
+  strftime(buffer, sizeof(buffer), "%A, %b %d", &timeinfo);
+  return String(buffer);
+}
+
+String TimeService::formatMinsFromMidnight(int mins, String format, bool show_ampm) {
+  if (mins == -1) return "--:--";
+  int h = mins / 60;
+  int m = mins % 60;
+  char buf[12];
+  
+  if (format == "24") {
+    snprintf(buf, sizeof(buf), "%02d:%02d", h, m);
+  } else {
+    int displayH = h % 12;
+    if (displayH == 0) displayH = 12;
     
-    char buffer[32];
-    strftime(buffer, sizeof(buffer), "%A, %b %d", &timeinfo);
-    return String(buffer);
+    if (show_ampm) {
+      const char* ampm = (h >= 12) ? "PM" : "AM";
+      snprintf(buf, sizeof(buf), "%02d:%02d %s", displayH, m, ampm);
+    } else {
+      snprintf(buf, sizeof(buf), "%02d:%02d", displayH, m);
+    }
+  }
+  return String(buf);
+}
+
+String TimeService::formatDurationMins(int mins) {
+  if (mins == -1) return "--";
+  char buf[12];
+  snprintf(buf, sizeof(buf), "%dh %dm", mins / 60, mins % 60);
+  return String(buf);
+}
+
+int TimeService::parseTimeToMinsFromMidnight(String apiTime) {
+  if (apiTime.length() < 8) return -1; 
+
+  int spaceIdx = apiTime.indexOf(' ');
+  if (spaceIdx == -1) return -1;
+
+  String timePart = apiTime.substring(0, spaceIdx);
+  String ampm = apiTime.substring(spaceIdx + 1);
+  ampm.toUpperCase();
+
+  int firstColon = timePart.indexOf(':');
+  int secondColon = timePart.indexOf(':', firstColon + 1);
+  if (firstColon == -1 || secondColon == -1) return -1;
+
+  int hour = timePart.substring(0, firstColon).toInt();
+  int minute = timePart.substring(firstColon + 1, secondColon).toInt();
+
+  if (ampm == "PM" && hour < 12) hour += 12;
+  if (ampm == "AM" && hour == 12) hour = 0;
+
+  return hour * 60 + minute;
+}
+
+int TimeService::parseDurationToMins(String apiDuration) {
+  int firstColon = apiDuration.indexOf(':');
+  int secondColon = apiDuration.indexOf(':', firstColon + 1);
+  if (firstColon == -1 || secondColon == -1) return -1;
+
+  int hour = apiDuration.substring(0, firstColon).toInt();
+  int minute = apiDuration.substring(firstColon + 1, secondColon).toInt();
+
+  return hour * 60 + minute;
 }

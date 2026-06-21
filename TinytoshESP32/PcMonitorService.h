@@ -8,7 +8,6 @@
 class PcMonitorService {
 public:
     bool handleSerial(AppState &state);
-    const PcStats& getStats() const;
 
 private:
     static const int JSON_BUF_SIZE = 256;
@@ -19,9 +18,7 @@ private:
     char serialBuffer[JSON_BUF_SIZE];
     int bufferIndex = 0;
 
-    void sendUpdateOverSerial(AppState &state);
-    void parseJson(const char* jsonString, AppState &state);
-    bool parseConfigJson(const char* jsonString, AppState &state);
+    static void parseJson(const char* jsonString, AppState &state);
 };
 
 #endif

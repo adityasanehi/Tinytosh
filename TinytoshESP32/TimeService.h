@@ -11,10 +11,14 @@ public:
     TimeService();
     void syncNTP(const String& ianaTimezone);
     bool fetchLocationData(Config& config);
-    String getCurrentTimeShort(String format);
-    String getCurrentTime(String format);
-    String getFullDate();
-    String lookupPosixTimezone(const String& ianaTimezone);
+    static String getCurrentTimeShort(String format);
+    static String getCurrentTime(String format);
+    static String getFullDate();
+    static String formatMinsFromMidnight(int mins, String format, bool show_ampm = true);
+    static String formatDurationMins(int mins);
+    static int parseTimeToMinsFromMidnight(String apiTime);
+    static int parseDurationToMins(String apiDuration);
+    static String lookupPosixTimezone(const String& ianaTimezone);
 
 private:
     static constexpr const char* LOCATION_API_URL = "http://ip-api.com/json/";

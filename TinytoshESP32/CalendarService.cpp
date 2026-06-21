@@ -24,7 +24,8 @@ void CalendarService::fetchHolidays(const String& countryCode, CalendarData& dat
     
     HTTPClient http;
     http.begin(client, url);
-    http.setTimeout(10000);
+    http.setConnectTimeout(5000); 
+    http.setTimeout(5000);
     int httpCode = http.GET();
 
     if (httpCode == HTTP_CODE_OK) {
@@ -45,7 +46,7 @@ void CalendarService::fetchHolidays(const String& countryCode, CalendarData& dat
                 data.count++;
             }
             
-            data.updated = true;
+            data.last_fetch_year = currentYear;
             Serial.printf("CalendarService: Successfully loaded %d holidays.\n", data.count);
         } else {
             Serial.print("CalendarService: JSON parsing failed: ");

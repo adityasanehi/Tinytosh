@@ -2,6 +2,7 @@
 #include <WiFiManager.h>
 #include <ArduinoJson.h>
 #include <OneButton.h>
+
 #include "structs.h"
 #include "images.h"
 #include "ConfigManager.h"
@@ -9,6 +10,7 @@
 #include "CalendarService.h"
 #include "WeatherService.h"
 #include "AirQualityService.h"
+#include "DaylightService.h"
 #include "DisplayService.h"
 #include "WebServerService.h"
 #include "CryptoService.h"
@@ -29,11 +31,16 @@ const unsigned long NIGHT_DIM_REFRESH_MS = 10000;
 const unsigned long NIGHT_DISPLAY_OFF_REFRESH_MS = 60000;
 const unsigned long NIGHT_WAKE_DURATION_MS = 30000;
 const int NIGHT_DATA_INTERVAL_MULTIPLIER = 10;
+
 const int CONTRAST_DIM = 1;
 const int CONTRAST_MAX = 255;
 
-// TTP223 Button Settings
-const int BUTTON_PIN = 10;
+// Hardware Pins
+const int DEFAULT_TOUCH_PIN = 10;
+const int DEFAULT_SDA_PIN = 8;
+const int DEFAULT_SCL_PIN = 9;
+const int MIN_GPIO_PIN = 0;
+const int MAX_GPIO_PIN = 21;
 
 // Global Data Structure
 AppState appState;
@@ -43,12 +50,13 @@ void updateAllDataCallback();
 
 // Service Instances
 ConfigManager configManager(PREF_NAMESPACE);
+DisplayService displayService(128, 64, -1);
+WebServerService webServerService(80, updateAllDataCallback);
 TimeService timeService;
 CalendarService calendarService;
 WeatherService weatherService;
 AirQualityService airQualityService;
-DisplayService displayService(128, 64, -1);
-WebServerService webServerService(80, updateAllDataCallback);
+DaylightService daylightService;
 CryptoService cryptoService;
 CurrencyService currencyService;
 StockService stockService;
@@ -58,51 +66,67 @@ BambuService bambuService;
 
 unsigned long lastScreenSwitch = 0;
 int currentScreen = 0;
+int currentSubScreen = 0;
 bool nightModeLatched = false;
 
-OneButton button(BUTTON_PIN, false, false); 
+OneButton button;
 unsigned long lastInteractionTime = 0; 
 unsigned long lastScreenUpdate = 0;
+
+// Background Task & Sync Trackers
+bool isBackgroundUpdating = false;
+TaskHandle_t bgUpdateTaskHandle = NULL;
+bool pendingDataUpdate = false;
 
 // Helper Functions
 
 void drawCurrentScreen() {
-  displayService.drawScreen(currentScreen, appState, timeService);
+  displayService.drawScreen(currentScreen, appState, currentSubScreen);
 }
 
 void switchToNextScreen() {
-  int startScreen = currentScreen;
-  int nextScreenCandidate = currentScreen;
-  bool foundVisible = false;
+  if (currentScreen == SCREEN_STOCK && currentSubScreen + 1 < appState.config.stock_count) {
+      currentSubScreen++;
+      displayService.animateTransition(currentScreen, currentSubScreen - 1, currentScreen, currentSubScreen, appState);
+      return;
+  }
+  if (currentScreen == SCREEN_CRYPTO && currentSubScreen + 1 < appState.config.crypto_count) {
+      currentSubScreen++;
+      displayService.animateTransition(currentScreen, currentSubScreen - 1, currentScreen, currentSubScreen, appState);
+      return;
+  }
+  if (currentScreen == SCREEN_CURRENCY && currentSubScreen + 1 < appState.config.currency_count) {
+      currentSubScreen++;
+      displayService.animateTransition(currentScreen, currentSubScreen - 1, currentScreen, currentSubScreen, appState);
+      return;
+  }
 
-  // 1. Find the current screen's position index in the order array
+  int oldScreen = currentScreen;
+  int oldSubScreen = currentSubScreen;
+  currentSubScreen = 0; 
+
   int currentIndex = 0;
   for (int i = 0; i < NUM_SCREENS; i++) {
     if (appState.config.screen_order[i] == currentScreen) {
-      currentIndex = i;
-      break;
+      currentIndex = i; break;
     }
   }
 
-  // 2. Loop forward through the array to find the next enabled screen
   int checkIndex = currentIndex;
+  int nextScreenCandidate = currentScreen;
   do {
     checkIndex++;
     if (checkIndex >= NUM_SCREENS) checkIndex = 0;
-
     int candidateId = appState.config.screen_order[checkIndex];
-    
     if (displayService.isScreenEnabled(appState, candidateId)) {
       nextScreenCandidate = candidateId;
-      foundVisible = true;
       break;
     }
   } while (checkIndex != currentIndex);
 
-  if (!foundVisible || currentScreen == nextScreenCandidate) return;
+  if (oldScreen == nextScreenCandidate && oldSubScreen == 0) return;
 
-  // 3. Animate and switch using the newly discovered screen ID
-  displayService.animateTransition(currentScreen, nextScreenCandidate, appState, timeService);
+  displayService.animateTransition(oldScreen, oldSubScreen, nextScreenCandidate, 0, appState);
   currentScreen = nextScreenCandidate;
 }
 
@@ -137,8 +161,8 @@ int getActiveNightAction() {
   int currentMins = timeinfo.tm_hour * 60 + timeinfo.tm_min;
 
   if (appState.config.night_action == 3) {
-    if (isTimeInWindow(currentMins, appState.config.night_start, appState.config.night_end)) return 2; // In the OFF window
-    if (isTimeInWindow(currentMins, appState.config.night_dim_start, appState.config.night_end)) return 1; // In the DIM window
+    if (isTimeInWindow(currentMins, appState.config.night_start, appState.config.night_end)) return 2;
+    if (isTimeInWindow(currentMins, appState.config.night_dim_start, appState.config.night_end)) return 1;
     return -1;
   }
 
@@ -147,6 +171,54 @@ int getActiveNightAction() {
   }
   
   return -1;
+}
+
+void validatePins(Config& config) {
+  bool used_pins[MAX_GPIO_PIN + 1] = {false};
+
+  auto claimPin = [&](int &pin, int default_pin) {
+    
+    // 1. Sanitize bounds
+    if (pin < MIN_GPIO_PIN || pin > MAX_GPIO_PIN) {
+      pin = default_pin;
+    }
+
+    // 2. Check for collision
+    if (used_pins[pin]) {
+      pin = default_pin;
+      
+      // 3. Find the absolute first available free pin
+      if (used_pins[pin]) {
+        for (int i = MIN_GPIO_PIN; i <= MAX_GPIO_PIN; i++) {
+          if (!used_pins[i]) {
+            pin = i;
+            break;
+          }
+        }
+      }
+    }
+    
+    // 4. Mark the final chosen pin as claimed
+    used_pins[pin] = true;
+  };
+
+  claimPin(config.sda_pin, DEFAULT_SDA_PIN);
+  claimPin(config.scl_pin, DEFAULT_SCL_PIN);
+  claimPin(config.touch_pin, DEFAULT_TOUCH_PIN);
+}
+
+void configureHardware() {
+  validatePins(appState.config);
+  
+  button.setup(appState.config.touch_pin, INPUT, false);
+  button.attachClick(handleSingleClick);
+  button.attachLongPressStart(handleLongPress);
+  button.setDebounceTicks(50); 
+  button.setClickTicks(100);
+  button.setPressTicks(750);
+  button.reset();
+  
+  Serial.printf("Hardware Configured: SDA=%d, SCL=%d, TOUCH=%d\n", appState.config.sda_pin, appState.config.scl_pin, appState.config.touch_pin);
 }
 
 // Core Application Logic
@@ -177,7 +249,7 @@ void handleSingleClick() {
 
 void handleLongPress() {
   appState.config.screen_auto_cycle = !appState.config.screen_auto_cycle;
-  
+
   if (appState.config.screen_auto_cycle) {
     Serial.println("🔄 Auto Cycle: ENABLED");
     displayService.drawInfoScreen(icon_unlock, "Auto Cycle On");
@@ -212,8 +284,13 @@ void updateAllData() {
   displayService.showOLEDStatus({"\n", "\n", "Syncing Time...", "\n", "Timezone:", appState.config.timezone}, true);
   timeService.syncNTP(appState.config.timezone);
 
+  struct tm timeinfo;
+  getLocalTime(&timeinfo);
+  int current_year = timeinfo.tm_year + 1900;
+  int current_yday = timeinfo.tm_yday;
+
   // 3. Fetch Calendar (Holidays - Depends on Country (Country Code))
-  if (appState.config.show_calendar && appState.config.calendar_show_holidays && !appState.calendar.updated) {  
+  if (appState.config.show_calendar && appState.config.calendar_show_holidays && appState.calendar.last_fetch_year != current_year) {  
     displayService.showOLEDStatus({"\n", "\n", "Updating Calendar...", "\n", "Country:", appState.config.country}, true);
     calendarService.fetchHolidays(appState.config.country_code, appState.calendar);
   }
@@ -221,7 +298,7 @@ void updateAllData() {
   // 4. Fetch Weather (Depends on Lat/Lon)
   if (appState.config.show_weather) {  
     displayService.showOLEDStatus({"\n", "\n", "Updating Weather...", "\n", "Location:", appState.config.city}, true);
-    String updateTime = timeService.getCurrentTime(appState.config.time_format);
+    String updateTime = TimeService::getCurrentTime(appState.config.time_format);
     weatherService.fetchWeather(appState.config, appState.weather, updateTime);
   }
 
@@ -231,27 +308,39 @@ void updateAllData() {
     airQualityService.fetchAirQuality(appState.config, appState.aqi);
   }
 
-  // 6. Fetch Stocks (Independent)
+  // 6. Fetch Daylight (Depends on Lat/Lon)
+  if (appState.config.show_daylight && appState.daylight.last_fetch_yday != current_yday) {  
+    displayService.showOLEDStatus({"\n", "\n", "Updating Daylight...", "\n", "Location:", appState.config.city}, true);
+    daylightService.fetchDaylight(appState.config, appState.daylight);
+  }
+
+  // 7. Fetch Stocks (Independent)
   if (appState.config.show_stock) {
-    displayService.showOLEDStatus({"\n", "\n", "Updating Stocks...", "\n", "Stock:", appState.config.stock_symbol}, true);
-    stockService.fetchStock(appState.config.stock_symbol, appState.stock);
+    for (int i = 0; i < appState.config.stock_count; i++) {
+      displayService.showOLEDStatus({"\n", "\n", "Updating Stocks...", "\n", "Stock:", appState.config.stock_symbols[i]}, true);
+      stockService.fetchStock(appState.config.stock_symbols[i], appState.stocks[i]);
+    }
   }
 
-  // 7. Fetch Crypto (Independent)
+  // 8. Fetch Crypto (Independent)
   if (appState.config.show_crypto) { 
-    displayService.showOLEDStatus({"\n", "\n", "Updating Crypto...", "\n", "Ticker ID:", String(appState.config.crypto_id)}, true);
-    cryptoService.fetchPrice(appState.config.crypto_id, appState.crypto);
+    for (int i = 0; i < appState.config.crypto_count; i++) {
+      displayService.showOLEDStatus({"\n", "\n", "Updating Crypto...", "\n", "Ticker ID:", String(appState.config.crypto_ids[i])}, true);
+      cryptoService.fetchPrice(appState.config.crypto_ids[i], appState.cryptos[i]);
+    }
   }
 
-  // 8. Fetch Currency (Independent)
+  // 9. Fetch Currency (Independent)
   if (appState.config.show_currency) { 
-    String baseUpper = String(appState.config.currency_base);
-    baseUpper.toUpperCase();
-    String targetUpper = String(appState.config.currency_target);
-    targetUpper.toUpperCase();
+    for (int i = 0; i < appState.config.currency_count; i++) {
+      String baseUpper = String(appState.config.currency_bases[i]);
+      baseUpper.toUpperCase();
+      String targetUpper = String(appState.config.currency_targets[i]);
+      targetUpper.toUpperCase();
 
-    displayService.showOLEDStatus({"\n", "\n", "Updating Currency...", "\n", "Currencies:", baseUpper + " -> " + targetUpper}, true);
-    currencyService.fetchRate(String(appState.config.currency_base), String(appState.config.currency_target), appState.currency);
+      displayService.showOLEDStatus({"\n", "\n", "Updating Currency...", "\n", "Currencies:", baseUpper + " -> " + targetUpper}, true);
+      currencyService.fetchRate(appState.config.currency_bases[i], appState.config.currency_targets[i], appState.currencies[i]);
+    }
   }
 
   // 9. Fetch Shopify Sales (Independent)
@@ -260,6 +349,8 @@ void updateAllData() {
     displayService.showOLEDStatus({"\n", "\n", "Updating Shopify...", "\n", "Store:", storeName}, true);
     shopifyService.fetchSales(appState.config, appState.shopify);
   }
+
+  displayService.showOLEDStatus({"\n", "\n", "Data Updated", "\n", "\n", "Tinytosh is Ready", "\n", "\n", "Welcome!"}, true);
 
   // 10. Save Everything
   configManager.saveConfig(appState.config);
@@ -274,34 +365,66 @@ void updateAllDataCallback() {
   updateAllData();
 }
 
+// Background Task for Scheduled Updates
+void backgroundDataFetchTask(void* parameter) {
+  Serial.println("Background Task: Starting API updates...");
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Background Task: WiFi offline. Aborting updates.");
+    isBackgroundUpdating = false;
+    bgUpdateTaskHandle = NULL;
+    vTaskDelete(NULL);
+    return;
+  }
+  
+  struct tm timeinfo;
+  getLocalTime(&timeinfo);
+  int current_year = timeinfo.tm_year + 1900;
+  int current_yday = timeinfo.tm_yday;
+
+  if (appState.config.show_weather) weatherService.fetchWeather(appState.config, appState.weather, TimeService::getCurrentTime(appState.config.time_format));
+  if (appState.config.show_aqi) airQualityService.fetchAirQuality(appState.config, appState.aqi);
+  if (appState.config.show_daylight && appState.daylight.last_fetch_yday != current_yday) daylightService.fetchDaylight(appState.config, appState.daylight);
+  if (appState.config.show_crypto) {
+    for (int i = 0; i < appState.config.crypto_count; i++) cryptoService.fetchPrice(appState.config.crypto_ids[i], appState.cryptos[i]);
+  }
+  if (appState.config.show_currency) {
+    for (int i = 0; i < appState.config.currency_count; i++) currencyService.fetchRate(appState.config.currency_bases[i], appState.config.currency_targets[i], appState.currencies[i]);
+  }
+  if (appState.config.show_stock) {
+    for (int i = 0; i < appState.config.stock_count; i++) stockService.fetchStock(appState.config.stock_symbols[i], appState.stocks[i]);
+  }
+  if (appState.config.show_shopify && appState.config.shopify_url.length() > 0) shopifyService.fetchSales(appState.config, appState.shopify);
+  if (appState.config.show_calendar && appState.config.calendar_show_holidays && appState.calendar.last_fetch_year != current_year) calendarService.fetchHolidays(appState.config.country_code, appState.calendar);
+  
+  Serial.println("Background Task: Updates complete.");
+  isBackgroundUpdating = false;
+  bgUpdateTaskHandle = NULL;
+  vTaskDelete(NULL);
+}
+
 void setup() {
   Serial.setRxBufferSize(1024);
   Serial.begin(115200);
-  button.attachClick(handleSingleClick);
-  button.attachLongPressStart(handleLongPress);
-  button.setDebounceTicks(50); 
-  button.setClickTicks(100);
-  button.setPressTicks(750);
   delay(100);
-  // configManager.clearAllPreferences();
 
-  // 1. Initialize Display and show startup message
-  displayService.begin();
+  configManager.loadConfig(appState.config); 
+  configureHardware();
+
+  displayService.begin(appState.config.sda_pin, appState.config.scl_pin);
   delay(3000);
 
-  // 2. Load Configuration
-  displayService.showOLEDStatus({"\n", "\n", "Starting...", "\n", "\n", "Loading Config..."}, true);
-  configManager.loadConfig(appState.config); 
+  displayService.showOLEDStatus({"\n", "\n", "Starting...", "\n", "\n", "Config Loaded!"}, true);
   bambuService.begin(&appState.config, &appState.bambu);
 
-  // 3. Connect WiFi and set device info
   WiFiManager wm;
   wm.setConnectTimeout(15);
   wm.setConnectRetries(3);
-  // wm.resetSettings();
+
   wm.setAPCallback([](WiFiManager* m) {
     displayService.showOLEDStatus({"\n", "WiFi not connected", "\n", "Connect to WiFi:", AP_SSID, "\n", "Password:", AP_PASS}, true);
   });
+
   displayService.showOLEDStatus({"\n", "\n", "Connecting...", "\n", "\n", "Searching WiFi..."}, true);
 
   if (wm.autoConnect(AP_SSID, AP_PASS)) {
@@ -313,7 +436,7 @@ void setup() {
 
     Serial.println("WiFi Connected!"); 
     Serial.print("IP Address: "); 
-    Serial.println(ipAddress); 
+    Serial.println(ipAddress);
 
     appState.config.device_id = uniqueName;
     appState.config.ip_address = ipAddress;
@@ -325,11 +448,12 @@ void setup() {
         "", 
         "Loading..."
     }, true);
-    
+
     delay(3000); 
 
-    // 4. Initial Data Fetch
-    updateAllData(); 
+    // 4. Initial Data Fetch (Synchronous)
+    updateAllData();
+
   } else {
     Serial.println("Failed to connect and timed out. Staying in AP Mode.");
     displayService.showOLEDStatus({"\n", "Connect Failed!", "\n", "Use Web Panel to set WiFi."}, true);
@@ -377,28 +501,34 @@ void loop() {
     }
   }
 
-  // 2. Scheduled Data Refresh
+  // 2. Scheduled Data Refresh (Non-Blocking via FreeRTOS Task)
   static unsigned long lastDataUpdate = 0;
   unsigned long dataInterval = appState.config.refresh_interval_min * 60 * 1000;
+  
   if (nightModeLatched) {
     dataInterval *= NIGHT_DATA_INTERVAL_MULTIPLIER;
   }
 
   if (millis() - lastDataUpdate > dataInterval) {
-    if (appState.config.show_weather) weatherService.fetchWeather(appState.config, appState.weather, timeService.getCurrentTime(appState.config.time_format));
-    if (appState.config.show_aqi) airQualityService.fetchAirQuality(appState.config, appState.aqi);
-    if (appState.config.show_crypto) cryptoService.fetchPrice(appState.config.crypto_id, appState.crypto);
-    if (appState.config.show_currency) currencyService.fetchRate(appState.config.currency_base, appState.config.currency_target, appState.currency);
-    if (appState.config.show_stock) stockService.fetchStock(appState.config.stock_symbol, appState.stock);
-    if (appState.config.show_shopify && appState.config.shopify_url.length() > 0) shopifyService.fetchSales(appState.config, appState.shopify);
-    if (appState.config.show_calendar && appState.config.calendar_show_holidays && !appState.calendar.updated) calendarService.fetchHolidays(appState.config.country_code, appState.calendar);
-    
+    if (!isBackgroundUpdating) {
+        isBackgroundUpdating = true;
+        Serial.println("Spawning background data update task...");
+        xTaskCreate(
+            backgroundDataFetchTask,
+            "BgUpdateTask",
+            8192,
+            NULL,
+            1,
+            &bgUpdateTaskHandle
+        );
+    }
     lastDataUpdate = millis();
   }
 
   // 3. Auto Screen Switching Logic
   if (appState.config.screen_auto_cycle && !nightModeLatched) {
     unsigned long intervalMs = appState.config.screen_interval_sec * 1000;
+
     if (millis() - lastScreenSwitch >= intervalMs) {
       switchToNextScreen();
       lastScreenSwitch = millis();
@@ -407,8 +537,10 @@ void loop() {
 
   // 4. Screen Redraw & Visual Action Logic
   static bool screenClearedForNight = false;
+
   bool isScreenOffAction = (nightModeLatched && activeAction == 2);
   bool isTemporarilyAwake = isScreenOffAction && (millis() - lastInteractionTime < NIGHT_WAKE_DURATION_MS);
+
   bool shouldDrawScreen = !isScreenOffAction || isTemporarilyAwake;
 
   if (!shouldDrawScreen) {
@@ -425,6 +557,7 @@ void loop() {
     }
     
     unsigned long refreshInterval = NORMAL_REFRESH_MS;
+
     if (nightModeLatched) {
       refreshInterval = (activeAction == 2) ? NIGHT_DISPLAY_OFF_REFRESH_MS : NIGHT_DIM_REFRESH_MS;
     }

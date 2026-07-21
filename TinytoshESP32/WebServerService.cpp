@@ -1,42 +1,11 @@
 #include "WebServerService.h"
+#include "DaylightService.h"
+#include "TimeService.h"
+#include "WeatherService.h"
+#include "JsonSerializer.h"
 #include <ArduinoJson.h>
 #include <ESPmDNS.h>
 #include "zones.h"
-
-String WebServerService::getCurrentTimeShort(String format) {
-    time_t now = time(nullptr);
-    struct tm timeinfo;
-    localtime_r(&now, &timeinfo);
-    
-    char time_str[12];
-    if (format == "12") {
-        strftime(time_str, sizeof(time_str), "%I:%M", &timeinfo);
-    } else {
-        strftime(time_str, sizeof(time_str), "%H:%M", &timeinfo);
-    }
-    return String(time_str);
-}
-
-String WebServerService::getFullDate() {
-    struct tm timeinfo;
-    if (!getLocalTime(&timeinfo)) return "No Date";
-    
-    char buffer[32];
-    strftime(buffer, sizeof(buffer), "%A, %b %d", &timeinfo);
-    return String(buffer);
-}
-
-String WebServerService::getWeatherIcon(int wmo_code) {
-  if (wmo_code == 0) return "☀️"; 
-  if (wmo_code == 1 || wmo_code == 2 || wmo_code == 3) return "🌤️"; 
-  if (wmo_code <= 48) return "🌫️"; 
-  if (wmo_code <= 55) return "🌧️"; 
-  if (wmo_code <= 65) return "☔"; 
-  if (wmo_code <= 75) return "❄️"; 
-  if (wmo_code <= 86) return "🌨️"; 
-  if (wmo_code <= 99) return "🌩️"; 
-  return "❓";
-}
 
 WebServerService::WebServerService(int port, ConfigSaveCallback callback) : 
   server(port), saveCallback(callback) {}
@@ -47,7 +16,7 @@ void WebServerService::setAppState(AppState* appState) {
 
 void WebServerService::begin() {
   server.on("/", HTTP_GET, [this](){ this->handleRoot(); }); 
-  server.on("/save", HTTP_GET, [this](){ this->handleSave(); });
+  server.on("/save", HTTP_POST, [this](){ this->handleSave(); });
   server.on("/update", HTTP_GET, [this](){ this->handleUpdate(); }); 
   server.on("/pc-stats", HTTP_POST, [this](){ this->handlePcStats(); });
   
@@ -83,85 +52,83 @@ void WebServerService::handleRoot() {
   Config& config = state->config;
   WeatherData& weather = state->weather;
   AirQualityData& aqi = state->aqi;
-  CryptoData& crypto = state->crypto;
-  CurrencyData& currency = state->currency;
-  StockData& stock = state->stock;
+  DaylightData& daylight = state->daylight;
   ShopifyData& shopify = state->shopify;
   PcStats& pc = state->pc;
   PcMedia& media = state->media;
-  
+
   bool weatherValid = !isnan(weather.temp);
   bool aqiValid = !isnan(aqi.pm25) && !isnan(aqi.pm10) && !isnan(aqi.no2);
-  bool pcValid = pc.cpu_percent > 0.1; 
-  bool cryptoValid = !isnan(crypto.price_usd) && crypto.price_usd > 0;
-  bool currencyValid = currency.updated;
-  bool stockValid = stock.updated;
+  bool daylightValid = daylight.sunrise_mins != -1;
+  bool pcValid = pc.cpu_percent > 0.1;
   bool shopifyValid = shopify.updated;
 
   add("<html><head><title>Tinytosh | Web Panel</title>");
   add("<meta name='viewport' content='width=device-width, initial-scale=1'><meta charset='UTF-8'>");
   add("<style>");
-  add(":root { --bg: #0f172a; --card: #1e293b; --accent: #3b82f6; --text: #f1f5f9; --text-muted: #94a3b8; --border: #334155; }");
-  add("* { box-sizing: border-box; }");
-  add("html, body { margin: 0; padding: 0; }");
-  add("body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); color: var(--text); padding: 20px; line-height: 1.6; }");
+  add(":root { --base-bg: #000000; --base-surface: #111111; --base-primary: #ffffff; --base-text: #ffffff; ");
+  add("--text-main: var(--base-text); --text-muted: color-mix(in srgb, var(--base-text) 55%, var(--base-bg) 45%); --text-faint: color-mix(in srgb, var(--base-text) 25%, var(--base-bg) 75%); --text-on-primary: var(--base-bg); ");
+  add("--surface-main: var(--base-surface); --surface-hover: color-mix(in srgb, var(--base-surface) 92%, var(--base-text) 8%); --surface-active: color-mix(in srgb, var(--base-surface) 85%, var(--base-text) 15%); ");
+  add("--border-subtle: color-mix(in srgb, var(--base-surface) 80%, var(--base-text) 20%); --border-strong: color-mix(in srgb, var(--base-primary) 60%, transparent); ");
+  add("--primary-main: var(--base-primary); --primary-hover: color-mix(in srgb, var(--base-primary) 80%, var(--base-text) 20%); --primary-glow: color-mix(in srgb, var(--base-primary) 15%, transparent); --shadow-base: color-mix(in srgb, var(--base-bg) 90%, black 10%); ");
+  add("--font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; --font-tech: 'SF Mono', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace; }");
+  
+  add("* { box-sizing: border-box; } html, body { margin: 0; padding: 0; }");
+  add("body { font-family: var(--font-sans); font-weight: 500; background-color: var(--base-bg); color: var(--text-main); padding: 20px; line-height: 1.6; }");
   add(".container { max-width: 800px; margin: 0 auto; }");
-  add(".app-header { padding-bottom: 20px; font-size: 2.5rem; color: var(--accent); font-weight: 700; text-align: center; }");
-  add("#time-display { text-align: center; color: var(--text); font-size: 4.5rem; font-weight: 800; letter-spacing: -2px; }");
-  add("#location-info { text-align: center; margin-top: 0px; margin-bottom: 0px; color: var(--text-muted); font-weight: 400; }");
-  add(".greetings-text { text-align: center; color: var(--accent); margin-bottom: 24px; font-style: italic; font-weight: normal; letter-spacing: 1px; }");
-  add(".identity-box { text-align: center; margin-top: 15px; padding: 12px; background: rgba(0,0,0,0.15); border-radius: 8px; border: 1px solid var(--border); }");
-  add(".id-text { color: var(--accent); font-weight: 700; text-transform: uppercase; font-family: monospace; font-size: 1.1rem; margin-bottom: 2px; }");
-  add(".ip-text { font-size: 0.9rem; color: var(--text-muted); font-family: monospace; margin-bottom: 5px; }");
-  add(".status-badge { text-align: center; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; font-family: monospace; }");
-  add("#pc-link-status { color: #10b981; }");
-  add(".panel { background: var(--card); padding: 25px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 24px; }");
-  add(".header-panel { background: rgba(59, 130, 246, 0.05); border: 1px solid var(--accent); }");
-  add(".panel-title { margin-top: 0; color: var(--accent); font-size: 1.17em; }");
-  add(".dashboard-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 20px; }");
-  add(".dashboard-grid > div { min-width: 0; }");
-  add(".tile { background: rgba(15, 23, 42, 0.4); border: 1px dashed var(--border); padding: 20px; border-radius: 10px; text-align: center; }");
-  add(".tile-icon { font-size: 2.2rem; margin-bottom: 8px; }");
-  add(".tile-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }");
-  add(".tile-value { font-size: 1.6rem; font-weight: 600; color: var(--text); }");
-  add(".date-val { font-size: 1.2rem; }");
-  add(".no-data-tile { grid-column: 1 / -1; background: rgba(59, 130, 246, 0.05); border: 1px solid var(--accent); padding: 30px; color: var(--accent); border-radius: 10px; text-align: center; margin-top: 15px; }");
-  add("label { display: block; margin-top: 15px; font-weight: 600; color: var(--text); }");
-  add("input[type='text'], input[type='number'], input[type='time'], select { display: block; width: 100% !important; padding: 12px; margin: 8px 0; border: 1px solid var(--border); border-radius: 6px; background-color: #0f172a; color: var(--text); font-size: 15px; appearance: none; -webkit-appearance: none; }");
-  add("select { background-image: url('data:image/svg+xml;utf8,<svg fill=\"%23f1f5f9\" height=\"24\" viewBox=\"0 0 24 24\" width=\"24\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M7 10l5 5 5-5z\"/></svg>'); background-repeat: no-repeat; background-position: right 10px center; }");
-  add("input[type='time'] { text-align: center; }");
-  add("input[type='time']::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }");
-  add("input:focus, select:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); }");
-  add("input:disabled { opacity: 0.5; cursor: not-allowed; background-color: #1e293b; }");
-  add("fieldset { border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-top: 15px; background: rgba(0,0,0,0.1); min-width: 0; overflow: hidden; }");
-  add("legend { color: var(--accent); font-weight: 700; padding: 0 10px; font-size: 0.9rem; text-transform: uppercase; }");
-  add("input[type='checkbox'], input[type='radio'] { accent-color: var(--accent); cursor: pointer; width: 16px; height: 16px; }");
-  add(".checkbox-label { display: flex; align-items: center; gap: 8px; margin-top: 10px; cursor: pointer; font-weight: 600; }");
-  add(".radio-group { display: flex; gap: 15px; margin-top: 8px; }");
-  add(".radio-label { display: flex; align-items: center; gap: 6px; cursor: pointer; margin-top: 0; font-weight: normal; }");
-  add(".anim-label { margin-top: 20px; margin-bottom: 10px; font-weight: 600; display: block; }");
-  add(".anim-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); }");
-  add(".anim-item { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.9em; margin-top: 0; }");
-  add(".sortable-list { list-style: none; padding: 0; margin: 15px 0 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: rgba(0,0,0,0.1); }");
-  add(".sortable-item { padding: 12px 15px; border-bottom: 1px solid var(--border); display: flex; align-items: center; cursor: grab; color: var(--text); background: var(--card); transition: background 0.2s, opacity 0.2s; }");
-  add(".sortable-item:last-child { border-bottom: none; }");
-  add(".sortable-item:active { cursor: grabbing; }");
-  add(".sortable-item.disabled { opacity: 0.4; background: transparent; cursor: default; }");
-  add(".drag-handle { margin-right: 15px; color: var(--text-muted); font-size: 1.2rem; }");
-  add(".sortable-item.dragging { opacity: 0.5; background: rgba(59, 130, 246, 0.2); }");
-  add("button { background-color: var(--accent); color: white; padding: 16px; border: none; border-radius: 8px; cursor: pointer; margin-top: 8px; width: 100%; font-size: 1.1rem; font-weight: 700; transition: opacity 0.2s; }");
-  add("button:hover { opacity: 0.9; }");
-  add(".help-text { font-size: 0.8em; color: var(--text-muted); margin-top: 8px; }");
-  add(".mt-0 { margin-top: 0 !important; }");
-  add(".update-footer { text-align: center; font-size: 0.8rem; color: var(--text-muted); margin-top: 15px; font-family: monospace; }");
-  add(".collapsible { transition: all 0.3s ease; }");
-  add(".hidden { display: none !important; }");
-  add("hr { border: 0; border-top: 1px solid var(--border); margin: 25px 0; }");
-  add("@media (max-width: 600px) { .dashboard-grid { grid-template-columns: 1fr; } #time-display { font-size: 3.5rem; } }");
+  add(".app-header { font-family: var(--font-tech); font-weight: 900; font-size: 2.8rem; color: var(--text-main); text-align: center; padding-bottom: 20px; letter-spacing: 2px; text-shadow: 0 0 20px var(--primary-glow); text-transform: uppercase; }");
+  
+  add(".mt-0 { margin-top: 0 !important; } .mt-25 { margin-top: 25px; } .mb-20 { margin-bottom: 20px; } .hidden { display: none !important; } hr { border: 0; border-top: 1px solid var(--border-subtle); margin: 20px 0; }");
+  add(".panel, .tile, .telemetry-tile, .identity-box, .no-data-tile, select, input, .checkbox-wrapper, button, fieldset, .anim-grid, .sortable-list, .log-container { border-radius: 6px; }");
+  
+  add(".panel { background: var(--surface-main); border: 1px solid var(--border-subtle); padding: 25px; margin-bottom: 24px; box-shadow: 0 10px 30px var(--shadow-base); }");
+  add(".header-panel { border: 1px solid var(--border-strong); box-shadow: 0 0 20px var(--primary-glow); }");
+  add(".panel-title { font-family: var(--font-tech); font-weight: 800; color: var(--text-main); font-size: 1.25rem; letter-spacing: -0.5px; text-transform: uppercase; margin-top: 0; margin-bottom: 15px; }");
+  
+  add(".tile, .telemetry-tile { background: linear-gradient(145deg, var(--surface-hover), var(--surface-main)); border: 1px solid var(--border-subtle); padding: 20px; text-align: center; box-shadow: 0 4px 15px var(--shadow-base); transition: all 0.2s ease; }");
+  add(".tile:hover { transform: translateY(-2px); border-color: var(--border-strong); box-shadow: 0 8px 25px var(--primary-glow); }");
+  add(".tile-icon { font-size: 2.2rem; margin-bottom: 10px; }");
+  add(".tile-label { font-size: 0.75rem; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 5px; font-weight: 600; }");
+  add(".tile-value { font-family: var(--font-tech); font-weight: 800; font-size: 1.6rem; color: var(--primary-main); line-height: 1.2; text-shadow: 0 0 10px var(--primary-glow); } .date-val { font-size: 1.1rem; }");
+  
+  add("#time-display { font-family: var(--font-tech); font-weight: 900; font-size: 4.5rem; text-align: center; color: var(--text-main); letter-spacing: -2px; text-shadow: 0 0 20px var(--primary-glow); }");
+  add("#location-info { text-align: center; margin: 0; color: var(--text-muted); font-weight: 500; font-size: 1.1rem; }");
+  add("#greetings-text { display: none; text-align: center; color: var(--primary-main); font-weight: 600; margin-top: 5px; margin-bottom: 20px; }");
+  add(".identity-box { background: var(--surface-active); border: 1px solid var(--border-subtle); padding: 15px; margin-top: 20px; text-align: center; }");
+  add(".id-text { font-family: var(--font-tech); font-weight: 800; font-size: 1.2rem; color: var(--text-main); margin-bottom: 4px; } .ip-text { font-family: var(--font-tech); font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px; }");
+  add(".status-badge { font-size: 0.8rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; text-align: center; } #status-text { color: var(--text-muted); } #tinytosh-link-status { color: var(--primary-main); }");
+  add(".no-data-tile { background: var(--surface-active); border: 1px dashed var(--border-strong); padding: 30px; color: var(--primary-main); text-align: center; font-weight: 600; margin-top: 15px; grid-column: 1 / -1; }");
+  
+  add(".dashboard-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 20px; } .dashboard-grid > div { min-width: 0; }");
+  add(".section-label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 5px; display: block; letter-spacing: 1px; text-transform: uppercase; font-weight: 700;} label { display: block; margin-top: 15px; font-weight: 600; color: var(--text-main); } .help-text { font-size: 0.85em; color: var(--text-muted); margin-top: 6px; }");
+  
+  add("select, input[type='text'], input[type='number'], input[type='time'], input[type='color'] { display: block; width: 100% !important; padding: 12px 15px; margin: 8px 0; background-color: var(--surface-active); color: var(--text-main); border: 1px solid var(--border-subtle); font-family: var(--font-tech); font-size: 14px; font-weight: 600; transition: all 0.2s; text-transform: uppercase; }");
+  add("select:focus, input:focus { border-color: var(--primary-main); outline: none; box-shadow: 0 0 0 3px var(--primary-glow); } input:disabled, select:disabled { opacity: 0.5; cursor: not-allowed; }");
+  add("select { appearance: none; -webkit-appearance: none; background-image: url('data:image/svg+xml;utf8,<svg fill=\"%23ffffff\" height=\"24\" viewBox=\"0 0 24 24\" width=\"24\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M7 10l5 5 5-5z\"/></svg>'); background-repeat: no-repeat; background-position: right 12px center; }");
+  add("input[type='color'] { padding: 0; cursor: pointer; height: 45px; border: 2px solid var(--border-subtle); } input[type='color']::-webkit-color-swatch-wrapper { padding: 0; } input[type='color']::-webkit-color-swatch { border: none; }");
+  
+  add("input[type='checkbox'], input[type='radio'] { accent-color: var(--primary-main); cursor: pointer; width: 18px; height: 18px; }");
+  add(".checkbox-wrapper { display: flex; align-items: center; margin-bottom: 20px; padding: 15px; background: var(--surface-hover); border: 1px solid var(--border-subtle); } .checkbox-wrapper label { margin-left: 12px; font-weight: 600; color: var(--text-main); font-size: 0.95rem; cursor: pointer; }");
+  add(".checkbox-label { display: flex; align-items: center; gap: 10px; margin-top: 12px; cursor: pointer; font-weight: 600; } .radio-group { display: flex; gap: 20px; margin-top: 10px; } .radio-label { display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 0; font-weight: 500; }");
+  
+  add("button { background-color: var(--primary-main); color: var(--text-on-primary); padding: 16px; border: none; cursor: pointer; margin-top: 8px; width: 100%; font-family: var(--font-tech); font-size: 1.1rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; transition: all 0.2s ease; box-shadow: 0 4px 15px var(--primary-glow); }");
+  add("button:hover { background-color: var(--primary-hover); transform: translateY(-1px); box-shadow: 0 6px 20px var(--primary-glow); } button:active { transform: translateY(1px); } button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }");
+  add(".btn-secondary { background-color: var(--surface-active); color: var(--text-main); border: 1px solid var(--border-subtle); box-shadow: none; } .btn-secondary:hover { background-color: var(--primary-main); color: var(--text-on-primary); border-color: var(--primary-main); }");
+  
+  add("fieldset { border: 1px solid var(--border-strong); padding: 25px; margin-top: 20px; background: var(--surface-hover); } legend { font-family: var(--font-tech); color: var(--primary-main); font-weight: 800; padding: 0 12px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }");
+  
+  add(".anim-label { margin-top: 20px; margin-bottom: 10px; font-weight: 700; display: block; } .anim-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 15px; padding: 20px; background: var(--surface-hover); border: 1px solid var(--border-subtle); } .anim-item { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.95em; margin-top: 0; padding: 5px 0; font-weight: 500; }");
+  
+  add(".sortable-list { list-style: none; padding: 0; margin: 15px 0 0; border: 1px solid var(--border-subtle); background: var(--surface-main); overflow: hidden; } .sortable-item { background: var(--surface-active); border-bottom: 1px solid var(--border-subtle); padding: 15px 20px; display: flex; align-items: center; gap: 15px; cursor: grab; color: var(--text-main); font-weight: 600; transition: background 0.2s; } .sortable-item:active { cursor: grabbing; } .sortable-item:last-child { border-bottom: none; } .sortable-item.disabled { opacity: 0.4; background: var(--surface-main); }");
+  add(".order-ctrl { display: flex; flex-direction: column; margin-right: 15px; gap: 4px; } .move-btn { cursor: pointer; color: var(--text-muted); font-size: 0.7rem; padding: 4px 8px; border: 1px solid var(--border-subtle); border-radius: 4px; background: var(--surface-main); transition: all 0.2s; } .move-btn:hover { color: var(--text-on-primary); background: var(--primary-main); border-color: var(--primary-main); } .sortable-item.disabled .order-ctrl { display: none; }");
+  add(".update-footer { text-align: center; font-size: 0.8rem; color: var(--text-muted); margin-top: 20px; font-family: var(--font-tech); }");
+  
+  add(".multi-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 12px; } .multi-row .input-wrapper { flex: 1; min-width: 0; } .multi-row .input-wrapper select { margin: 0; } .btn-remove { width: 45px !important; height: 45px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0; font-size: 1.5rem !important; display: flex; align-items: center; justify-content: center; background-color: var(--surface-active); color: var(--text-muted); border: 1px solid var(--border-subtle); box-shadow: none; font-family: var(--font-sans); font-weight: 400; } .btn-remove:hover { background-color: var(--primary-main); color: var(--text-on-primary); border-color: var(--primary-main); }");
+  add("@media (max-width: 400px) { .dashboard-grid { grid-template-columns: 1fr; } #time-display { font-size: 3.5rem; } }");
   add("</style></head><body><div class='container'>");
 
   add("<div class='app-header'>Tinytosh</div>");
-  add("<div class='panel header-panel'><div id='time-display'>" + getCurrentTimeShort(config.time_format) + "</div>"); 
+  add("<div class='panel header-panel'><div id='time-display'>" + TimeService::getCurrentTimeShort(config.time_format) + "</div>"); 
   add("<h2 id='location-info'>📍 --, -- (--)</h2>"); 
   add("<div id='greetings-text' class='greetings-text'></div>");
   
@@ -180,8 +147,36 @@ void WebServerService::handleRoot() {
   add("</div></div>");
 
   add("<form method='get' action='/save'>");
+  
+  add("<div class='panel'><h3 class='panel-title'>Hardware Setup</h3>");
+  add("<div class='dashboard-grid mt-0'>");
+  
+  auto buildPinSelect = [&](String name, String label, int currentValue) {
+      String out = "<label class='mt-0'>" + label + ":</label><select name='" + name + "' class='hw-pin'>";
+      for (int p = 0; p <= 21; p++) {
+          out += "<option value='" + String(p) + "'" + (p == currentValue ? " selected" : "") + ">GPIO " + String(p) + "</option>";
+      }
+      out += "</select>";
+      return out;
+  };
+
+  add("  <div>" + buildPinSelect("sda_pin", "I2C SDA Pin", config.sda_pin) + "</div>");
+  add("  <div>" + buildPinSelect("scl_pin", "I2C SCL Pin", config.scl_pin) + "</div>");
+  add("</div>");
+  add(buildPinSelect("touch_pin", "Touch Sensor GPIO Pin", config.touch_pin));
+  add("<p class='help-text mt-0'>Reboot Tinytosh to apply any hardware pin changes.</p>");
+  add("</div>");
 
   add("<div class='panel'><h3 class='panel-title'>Global Settings</h3>");
+  add("<label class='mt-0'>Color Theme:</label>");
+  add("<p class='help-text mt-0'>Customize the 4 base colors to recolor the entire app interface.</p>");
+  add("<div class='dashboard-grid mt-0'>");
+  add("  <div><label class='mt-0'>App Background:</label><input type='color' name='theme_bg' id='theme_bg' value='" + config.theme_bg + "'></div>");
+  add("  <div><label class='mt-0'>Surface / Panels:</label><input type='color' name='theme_card' id='theme_card' value='" + config.theme_card + "'></div>");
+  add("  <div><label class='mt-0'>Primary Accent (Highlights):</label><input type='color' name='theme_accent' id='theme_accent' value='" + config.theme_accent + "'></div>");
+  add("  <div><label class='mt-0'>Main Text:</label><input type='color' name='theme_text' id='theme_text' value='" + config.theme_text + "'></div>");
+  add("</div><hr>");
+
   add("<label>Data Sync Interval (Mins):</label><input type='number' name='refresh_min' value='" + String(config.refresh_interval_min) + "'>");
   add("<label class='checkbox-label mt-0' style='margin-top: 10px !important;'><input type='checkbox' id='autoCycle' name='auto_cycle' value='1' " + String(config.screen_auto_cycle ? "checked" : "") + "> Cycle Screens Automatically</label>");
   add("<p class='help-text mt-0'>If disabled, screens will only change when you press the button.</p>");
@@ -235,12 +230,32 @@ void WebServerService::handleRoot() {
   add("  </select></div>");
 
   add("  <div><label class='mt-0'>Timezone:</label><select name='timezone'>");
-  DynamicJsonDocument tzDoc(6144); 
-  deserializeJson(tzDoc, POSIX_TIMEZONE_MAP); 
-  for (JsonPair p : tzDoc.as<JsonObject>()) {
-      String key = p.key().c_str();
+  
+  const char* tzCursor = POSIX_TIMEZONE_MAP;
+  while ((tzCursor = strchr(tzCursor, '"')) != nullptr) {
+      const char* keyStart = tzCursor + 1;
+      const char* keyEnd = strchr(keyStart, '"');
+      if (!keyEnd) break;
+
+      const char* colon = keyEnd + 1;
+      while (*colon == ' ' || *colon == '\t') colon++;
+      if (*colon != ':') {
+          tzCursor = keyEnd + 1;
+          continue;
+      }
+
+      String key;
+      key.reserve(keyEnd - keyStart);
+      for (const char* p = keyStart; p < keyEnd; p++) key += *p;
       add("<option value='" + key + "'" + (key == config.timezone ? " selected" : "") + ">" + key + "</option>");
+
+      const char* valueStart = strchr(colon, '"');
+      if (!valueStart) break;
+      const char* valueEnd = strchr(valueStart + 1, '"');
+      if (!valueEnd) break;
+      tzCursor = valueEnd + 1;
   }
+  
   add("  </select></div>");
   add("</div></fieldset><hr>");
   
@@ -277,6 +292,7 @@ void WebServerService::handleRoot() {
       case SCREEN_CALENDAR: targetId = "showCalendar"; break;
       case SCREEN_WEATHER: targetId = "showWeather"; break;
       case SCREEN_AIR_QUALITY: targetId = "showAQI"; break;
+      case SCREEN_DAYLIGHT: targetId = "showDaylight"; break;
       case SCREEN_CRYPTO: targetId = "showCrypto"; break;
       case SCREEN_CURRENCY: targetId = "showCurrency"; break;
       case SCREEN_SHOPIFY: targetId = "showShopify"; break;
@@ -302,7 +318,7 @@ void WebServerService::handleRoot() {
               add("<div id='timeContent' class='collapsible'>");
               
               add("<div class='dashboard-grid'>");
-              add("<div class='tile'><div class='tile-icon'>🕒</div><div class='tile-value' id='preview-time'>" + getCurrentTimeShort(config.time_format) + "</div><div class='tile-label'>Current Time</div></div>");
+              add("<div class='tile'><div class='tile-icon'>🕒</div><div class='tile-value' id='preview-time'>" + TimeService::getCurrentTimeShort(config.time_format) + "</div><div class='tile-label'>Current Time</div></div>");
               add("<div class='tile'><div class='tile-icon'>🌐</div><div class='tile-value' id='preview-tz' style='font-size:1.2rem'>" + config.timezone + "</div><div class='tile-label'>Timezone</div></div>");
               add("</div>");
               
@@ -319,7 +335,7 @@ void WebServerService::handleRoot() {
               String holText = (state->calendar.count > 0) ? String(state->calendar.count) : "No holiday data";
               
               add("<div class='dashboard-grid'>");
-              add("<div class='tile'><div class='tile-icon'>📅</div><div class='tile-value date-val' id='preview-date'>" + getFullDate() + "</div><div class='tile-label'>Current Date</div></div>");
+              add("<div class='tile'><div class='tile-icon'>📅</div><div class='tile-value date-val' id='preview-date'>" + TimeService::getFullDate() + "</div><div class='tile-label'>Current Date</div></div>");
               add("<div class='tile'><div class='tile-icon'>🎉</div><div class='tile-value' id='preview-hol' style='font-size:1.2rem'>" + holText + "</div><div class='tile-label'>Holidays Loaded</div></div>");
               add("</div>");
               
@@ -345,7 +361,7 @@ void WebServerService::handleRoot() {
               }
               
               add("<div class='dashboard-grid'>");
-              add("<div class='tile'><div class='tile-icon' id='icon-temp'>" + getWeatherIcon(weather.weather_code) + "</div><div class='tile-value' id='value-temp'>" + String(weather.temp, 1) + " °" + config.temp_unit + "</div><div class='tile-label'>Temperature</div></div>");
+              add("<div class='tile'><div class='tile-icon' id='icon-temp'>" + WeatherService::getWeatherIcon(weather.weather_code) + "</div><div class='tile-value' id='value-temp'>" + String(weather.temp, 1) + " °" + config.temp_unit + "</div><div class='tile-label'>Temperature</div></div>");
               add("<div class='tile'><div class='tile-icon'>🤒</div><div class='tile-value' id='value-feels'>" + String(weather.apparent_temperature, 1) + " °" + config.temp_unit + "</div><div class='tile-label'>Feels Like</div></div>");
               add("<div class='tile'><div class='tile-icon'>💧</div><div class='tile-value' id='value-hum'>" + String(weather.humidity) + "%</div><div class='tile-label'>Humidity</div></div>");
               add("<div class='tile'><div class='tile-icon'>💨</div><div class='tile-value' id='value-wind'>" + String(weather.wind_speed, 1) + " km/h</div><div class='tile-label'>Wind Speed</div></div>");
@@ -356,6 +372,7 @@ void WebServerService::handleRoot() {
               add("<label class='radio-label'><input type='radio' name='temp_unit' value='F' " + String(config.temp_unit == "F" ? "checked" : "") + "> °F</label></div>");
               
               add("<label class='checkbox-label'><input type='checkbox' name='round_temps' value='1' " + String(config.round_temps ? "checked" : "") + "> Round Temperature Values</label>");
+              add("<label class='checkbox-label'><input type='checkbox' name='weather_hide_bar' value='1' " + String(config.weather_hide_bar ? "checked" : "") + "> Hide Top Bar (Location & Time)</label>");
               add("</div></div>");
               break;
           }
@@ -382,7 +399,30 @@ void WebServerService::handleRoot() {
               add("<label class='radio-label'><input type='radio' name='aqi_type' value='US' " + String(config.aqi_type == "US" ? "checked" : "") + "> US Standard</label>");
               add("<label class='radio-label'><input type='radio' name='aqi_type' value='EU' " + String(config.aqi_type == "EU" ? "checked" : "") + "> European Standard</label></div>");
               add("<p class='help-text mt-0'>EU: 0-100+ scale | US: 0-500 scale</p>");
+              add("<label class='checkbox-label'><input type='checkbox' name='aqi_hide_bar' value='1' " + String(config.aqi_hide_bar ? "checked" : "") + "> Hide Top Bar (Location & Time)</label>");
+              add("</div></div>");
+              break;
+          }
 
+          case SCREEN_DAYLIGHT: {
+              add("<div class='panel' id='panel-" + String(screenId) + "'>");
+              add("<label class='checkbox-label mt-0'><input type='checkbox' id='showDaylight' name='show_daylight' value='1' " + String(config.show_daylight ? "checked" : "") + "> Daylight Screen</label>");
+              add("<div id='daylightContent' class='collapsible'>");
+
+              if (!daylightValid) {
+                  add("<div id='daylight-no-data' class='no-data-tile'>☀️ Daylight data will be available after sync</div><div id='daylight-grid' class='hidden'>");
+              } else {
+                  add("<div id='daylight-no-data' class='no-data-tile hidden'>☀️ Daylight data will be available after sync</div><div id='daylight-grid'>");
+              }
+              
+              add("<div class='dashboard-grid'>");
+              add("<div class='tile'><div class='tile-icon'>🌅</div><div class='tile-value' id='val-sunrise'>" + TimeService::formatMinsFromMidnight(daylight.sunrise_mins, config.time_format) + "</div><div class='tile-label'>Sunrise</div></div>");
+              add("<div class='tile'><div class='tile-icon'>🌇</div><div class='tile-value' id='val-sunset'>" + TimeService::formatMinsFromMidnight(daylight.sunset_mins, config.time_format) + "</div><div class='tile-label'>Sunset</div></div>");
+              add("<div class='tile'><div class='tile-icon'>☀️</div><div class='tile-value' id='val-noon'>" + TimeService::formatMinsFromMidnight(daylight.noon_mins, config.time_format) + "</div><div class='tile-label'>Solar Noon</div></div>");
+              add("<div class='tile'><div class='tile-icon'>⏱️</div><div class='tile-value' id='val-length'>" + TimeService::formatDurationMins(daylight.length_mins) + "</div><div class='tile-label'>Day Length</div></div>");
+              add("</div><div class='update-footer' id='daylight-upd'>Last Update: " + weather.update_time + "</div></div>");
+              
+              add("<label class='checkbox-label'><input type='checkbox' name='daylight_min' value='1' " + String(config.daylight_minimal ? "checked" : "") + "> Minimalistic Mode (Hide timeline)</label>");
               add("</div></div>");
               break;
           }
@@ -392,22 +432,14 @@ void WebServerService::handleRoot() {
               add("<label class='checkbox-label mt-0'><input type='checkbox' id='showStock' name='show_stock' value='1' " + String(config.show_stock ? "checked" : "") + "> Stock Tracking Screen</label>");
               add("<div id='stockContent' class='collapsible'>");
               
-              if (!stockValid) {
-                  add("<div id='stock-no-data' class='no-data-tile'>📈 Stock data will be available after sync</div><div id='stock-grid' class='hidden'>");
-              } else {
-                  add("<div id='stock-no-data' class='no-data-tile hidden'>📈 Stock data will be available after sync</div><div id='stock-grid'>");
-              }
-              
+              add("<div id='stock-no-data' class='no-data-tile'>📈 Stock data will be available after sync</div><div id='stock-grid' class='hidden'>");
               add("<div class='dashboard-grid'>");
-              add("<div class='tile'><div class='tile-icon'>📊</div><div class='tile-value' id='stock-price'>$" + String(stock.price, 2) + "</div><div class='tile-label' id='stock-sym'>" + stock.symbol + " Price</div></div>");
-              add("<div class='tile'><div class='tile-icon' id='stock-trend-icon'>" + String(stock.percent_change >= 0 ? "📈" : "📉") + "</div><div class='tile-value' id='stock-change'>" + String(stock.percent_change, 2) + "%</div><div class='tile-label'>Daily Change</div></div>");
-              add("</div><div class='update-footer' id='stock-upd'>Last Update: " + weather.update_time + "</div></div>");
+              add("<div class='tile'><div class='tile-icon'>📊</div><div class='tile-value' id='stock-price' style='font-size:1.0rem; line-height:1.5;'>--</div><div class='tile-label'>PRICES</div></div>");
+              add("<div class='tile'><div class='tile-icon'>📈</div><div class='tile-value' id='stock-change' style='font-size:1.0rem; line-height:1.5;'>--</div><div class='tile-label'>24H CHANGE</div></div>");
+              add("</div><div class='update-footer' id='stock-upd'>Last Update: --</div></div>");
 
-              add("<label>Track Stock/ETF:</label><select name='stock_symbol'>");
-              for(auto s : topStocks) {
-                  add("<option value='" + String(s.ticker) + "' " + (String(config.stock_symbol) == String(s.ticker) ? "selected" : "") + ">" + String(s.name) + " - " + String(s.ticker) + "</option>");
-              }
-              add("</select>");
+              add("<div id='stock-list-container'></div>");
+              add("<button type='button' class='btn-blue' onclick='addStockRow()'>+ Add Stock / ETF</button>");
               add("<label class='checkbox-label'><input type='checkbox' name='stock_fn' value='1' " + String(config.stock_fn ? "checked" : "") + "> Display Full Company Name</label>");
               add("</div></div>");
               break;
@@ -418,22 +450,14 @@ void WebServerService::handleRoot() {
               add("<label class='checkbox-label mt-0'><input type='checkbox' id='showCrypto' name='show_crypto' value='1' " + String(config.show_crypto ? "checked" : "") + "> Crypto Tracking Screen</label>");
               add("<div id='cryptoContent' class='collapsible'>");
               
-              if (!cryptoValid) {
-                  add("<div id='crypto-no-data' class='no-data-tile'>💰 Crypto data will be available after sync</div><div id='crypto-grid' class='hidden'>");
-              } else {
-                  add("<div id='crypto-no-data' class='no-data-tile hidden'>💰 Crypto data will be available after sync</div><div id='crypto-grid'>");
-              }
-              
+              add("<div id='crypto-no-data' class='no-data-tile'>💰 Crypto data will be available after sync</div><div id='crypto-grid' class='hidden'>");
               add("<div class='dashboard-grid'>");
-              add("<div class='tile'><div class='tile-icon'>₿</div><div class='tile-value' id='crypto-price'>" + String((int)round(crypto.price_usd)) + "$</div><div class='tile-label' id='crypto-sym'>" + crypto.symbol + " Price</div></div>");
-              add("<div class='tile'><div class='tile-icon' id='crypto-trend-icon'>" + String(crypto.percent_change_24h >= 0 ? "📈" : "📉") + "</div><div class='tile-value' id='crypto-change'>" + String(crypto.percent_change_24h, 1) + "%</div><div class='tile-label'>24h Change</div></div>");
-              add("</div><div class='update-footer' id='crypto-upd'>Last Update: " + weather.update_time + "</div></div>");
+              add("<div class='tile'><div class='tile-icon'>₿</div><div class='tile-value' id='crypto-price' style='font-size:1.0rem; line-height:1.5;'>--</div><div class='tile-label'>PRICES</div></div>");
+              add("<div class='tile'><div class='tile-icon'>📈</div><div class='tile-value' id='crypto-change' style='font-size:1.0rem; line-height:1.5;'>--</div><div class='tile-label'>24H CHANGE</div></div>");
+              add("</div><div class='update-footer' id='crypto-upd'>Last Update: --</div></div>");
               
-              add("<label>Track Cryptocurrency:</label><select name='crypto_id'>");
-              for(auto coin : topCoins) {
-                  add("<option value='" + String(coin.id) + "' " + (config.crypto_id == coin.id ? "selected" : "") + ">" + String(coin.sym) + "</option>");
-              }
-              add("</select>");
+              add("<div id='crypto-list-container'></div>");
+              add("<button type='button' class='btn-blue' onclick='addCryptoRow()'>+ Add Cryptocurrency</button>");
               add("<label class='checkbox-label'><input type='checkbox' name='crypto_fn' value='1' " + String(config.crypto_fn ? "checked" : "") + "> Display Full Coin Name</label>");
               add("</div></div>");
               break;
@@ -444,47 +468,14 @@ void WebServerService::handleRoot() {
               add("<label class='checkbox-label mt-0'><input type='checkbox' id='showCurrency' name='show_currency' value='1' " + String(config.show_currency ? "checked" : "") + "> Currency Exchange Screen</label>");
               add("<div id='currencyContent' class='collapsible'>");
               
-              if (!currencyValid) {
-                  add("<div id='currency-no-data' class='no-data-tile'>💱 Currency data will be available after sync</div><div id='currency-grid' class='hidden'>");
-              } else {
-                  add("<div id='currency-no-data' class='no-data-tile hidden'>💱 Currency data will be available after sync</div><div id='currency-grid'>");
-              }
-              
+              add("<div id='currency-no-data' class='no-data-tile'>💱 Currency data will be available after sync</div><div id='currency-grid' class='hidden'>");
               add("<div class='dashboard-grid'>");
-              float displayRate = currency.rate * config.currency_multiplier;
-              int decimals = 0;
-              if (displayRate < 10.0) decimals = 3;
-              else if (displayRate < 100.0) decimals = 2;
-              else if (displayRate < 1000.0) decimals = 1;
+              add("<div class='tile'><div class='tile-icon'>💵</div><div class='tile-value' id='currency-base-val' style='font-size:1.0rem; line-height:1.5;'>--</div><div class='tile-label'>BASE</div></div>");
+              add("<div class='tile'><div class='tile-icon'>💱</div><div class='tile-value' id='currency-target-val' style='font-size:1.0rem; line-height:1.5;'>--</div><div class='tile-label'>EXCHANGE RATE</div></div>");
+              add("</div><div class='update-footer' id='currency-upd'>Last Update: --</div></div>");
 
-              add("<div class='tile'><div class='tile-icon'>💵</div><div class='tile-value' id='currency-base-val'>" + String(config.currency_multiplier) + " " + currency.base + "</div><div class='tile-label'>Base Amount</div></div>");
-              add("<div class='tile'><div class='tile-icon'>💱</div><div class='tile-value' id='currency-target-val'>" + String(displayRate, decimals) + " " + currency.target + "</div><div class='tile-label'>Exchange Rate</div></div>");
-              add("</div><div class='update-footer' id='currency-upd'>Last Update: " + weather.update_time + "</div></div>");
-
-              add("<div class='dashboard-grid mt-0'>");
-              
-              add("<div><label class='mt-0'>Base Currency:</label><select name='currency_base'>");
-              for(auto c : allCurrencies) {
-                  String codeDisplay = String(c.code).substring(0, 3);
-                  codeDisplay.toUpperCase(); 
-                  add("<option value='" + String(c.code) + "' " + (String(config.currency_base) == String(c.code) ? "selected" : "") + ">" + codeDisplay + "</option>");
-              }
-              add("</select></div>");
-
-              add("<div><label class='mt-0'>Target Currency:</label><select name='currency_target'>");
-              for(auto c : allCurrencies) {
-                  String codeDisplay = String(c.code).substring(0, 3);
-                  codeDisplay.toUpperCase(); 
-                  add("<option value='" + String(c.code) + "' " + (String(config.currency_target) == String(c.code) ? "selected" : "") + ">" + codeDisplay + "</option>");
-              }
-              add("</select></div></div>");
-
-              add("<label>Multiplier Amount:</label><select name='currency_multiplier'>");
-              int multipliers[] = {1, 10, 100, 1000, 10000, 100000};
-              for (int m : multipliers) {
-                  add("<option value='" + String(m) + "' " + (config.currency_multiplier == m ? "selected" : "") + ">" + String(m) + "</option>");
-              }
-              add("</select>");
+              add("<div id='currency-list-container'></div>");
+              add("<button type='button' class='btn-blue' onclick='addCurrencyRow()'>+ Add Currency Pair</button>");
               add("<label class='checkbox-label'><input type='checkbox' name='currency_fn' value='1' " + String(config.currency_fn ? "checked" : "") + "> Display Full Currency Name</label>");
               add("</div></div>");
               break;
@@ -598,8 +589,9 @@ void WebServerService::handleRoot() {
   
   add("<script>");
   add("let formDirty = false;");
+  
   add("function updateVisibility(){");
-  add("  var pairs = [['autoDetect','manualFields',true], ['nightMode','nightFields',false], ['showTime', 'timeContent',false], ['showCalendar', 'calendarContent',false], ['showWeather','weatherContent',false], ['showPc','pcContent',false], ['showCrypto','cryptoContent',false], ['showCurrency','currencyContent',false], ['showStock','stockContent',false], ['showShopify','shopifyContent',false], ['showAQI','aqiContent',false], ['showMedia','mediaContent',false], ['showBambu','bambuContent',false]];");  
+  add("  var pairs = [['autoDetect','manualFields',true], ['nightMode','nightFields',false], ['showTime', 'timeContent',false], ['showCalendar', 'calendarContent',false], ['showWeather','weatherContent',false], ['showDaylight','daylightContent',false], ['showPc','pcContent',false], ['showCrypto','cryptoContent',false], ['showCurrency','currencyContent',false], ['showStock','stockContent',false], ['showShopify','shopifyContent',false], ['showAQI','aqiContent',false], ['showMedia','mediaContent',false], ['showBambu','bambuContent',false]];");
   add("  pairs.forEach(p => {");
   add("    var ch = document.getElementById(p[0]); if(!ch) return;");
   add("    var target = document.getElementById(p[1]);");
@@ -607,11 +599,22 @@ void WebServerService::handleRoot() {
   add("    target.className = shouldHide ? 'collapsible hidden' : 'collapsible';");
   add("    target.querySelectorAll('input, select').forEach(el => el.disabled = shouldHide);");
   add("  });");
-
   add("  var ac = document.getElementById('autoCycle');");
   add("  var si = document.getElementById('screenIntInput');");
   add("  if(ac && si) si.disabled = !ac.checked;");
   add("}");
+
+  add("function updatePinSelects() {");
+  add("  const selects = document.querySelectorAll('.hw-pin');");
+  add("  const vals = Array.from(selects).map(s => s.value);");
+  add("  selects.forEach(sel => {");
+  add("    Array.from(sel.options).forEach(opt => {");
+  add("      opt.disabled = vals.includes(opt.value) && opt.value !== sel.value;");
+  add("    });");
+  add("  });");
+  add("}");
+  add("document.querySelectorAll('.hw-pin').forEach(s => s.addEventListener('change', updatePinSelects));");
+  add("updatePinSelects();");
 
   add("function updateNightAction() {");
   add("  var action = document.getElementById('nightActionSelect').value;");
@@ -620,8 +623,27 @@ void WebServerService::handleRoot() {
   add("}");
   add("document.getElementById('nightActionSelect').addEventListener('change', updateNightAction);");
   add("updateNightAction();");
-  
-  add("['autoDetect', 'nightMode', 'showTime', 'showCalendar', 'showWeather', 'showPc', 'showCrypto', 'showCurrency', 'showStock', 'showShopify', 'showAQI', 'showMedia', 'showBambu', 'autoCycle'].forEach(id => { var el=document.getElementById(id); if(el) el.addEventListener('change', updateVisibility); });");
+
+  add("window.updateRowControls = function(containerId, maxLimit) { const container = document.getElementById(containerId); if(!container) return; const rows = container.children; const addBtn = container.nextElementSibling; if(addBtn && addBtn.tagName === 'BUTTON') { addBtn.style.display = rows.length >= maxLimit ? 'none' : 'block'; } const removeBtns = container.querySelectorAll('.btn-remove'); removeBtns.forEach(btn => { btn.style.display = rows.length <= 1 ? 'none' : 'flex'; }); };");
+  add("window.removeRow = function(btn, containerId) { btn.parentElement.remove(); formDirty = true; updateRowControls(containerId, 5); };");
+
+  add("window.addStockRow = function(val = null) { const container = document.getElementById('stock-list-container'); if (!container || container.children.length >= 5) return; const div = document.createElement('div'); div.className = 'multi-row'; let opts = ''; ");
+  for(auto s : topStocks) { add("opts += `<option value='" + String(s.ticker) + "'>" + String(s.name) + " - " + String(s.ticker) + "</option>`;"); }
+  add("div.innerHTML = `<div class='input-wrapper'><label class='mt-0'>Track Stock:</label><select name='stock_symbols[]'>${opts}</select></div><button type='button' class='btn-remove' onclick=\"removeRow(this, 'stock-list-container')\">-</button>`; container.appendChild(div); if (val) div.querySelector('select').value = val; formDirty = true; updateRowControls('stock-list-container', 5); };");
+
+  add("window.addCryptoRow = function(val = null) { const container = document.getElementById('crypto-list-container'); if (!container || container.children.length >= 5) return; const div = document.createElement('div'); div.className = 'multi-row'; let opts = ''; ");
+  for(auto c : topCoins) { add("opts += `<option value='" + String(c.id) + "'>" + String(c.sym) + "</option>`;"); }
+  add("div.innerHTML = `<div class='input-wrapper'><label class='mt-0'>Track Crypto:</label><select name='crypto_ids[]'>${opts}</select></div><button type='button' class='btn-remove' onclick=\"removeRow(this, 'crypto-list-container')\">-</button>`; container.appendChild(div); if (val) div.querySelector('select').value = val; formDirty = true; updateRowControls('crypto-list-container', 5); };");
+
+  add("window.addCurrencyRow = function(bVal = null, tVal = null, mVal = null) { const container = document.getElementById('currency-list-container'); if (!container || container.children.length >= 5) return; const div = document.createElement('div'); div.className = 'multi-row'; let cOpts = ''; ");
+  for(auto c : allCurrencies) { 
+    String codeStr = String(c.code);
+    codeStr.toUpperCase();
+    add("cOpts += `<option value='" + String(c.code) + "'>" + codeStr + "</option>`;"); 
+  }
+  add("div.innerHTML = `<div class='input-wrapper'><label class='mt-0'>Base:</label><select name='currency_bases[]'>${cOpts}</select></div><div class='input-wrapper'><label class='mt-0'>Target:</label><select name='currency_targets[]'>${cOpts}</select></div><div class='input-wrapper'><label class='mt-0'>Mult:</label><select name='currency_multipliers[]'><option value='1'>1</option><option value='10'>10</option><option value='100'>100</option><option value='1000'>1000</option></select></div><button type='button' class='btn-remove' onclick=\"removeRow(this, 'currency-list-container')\">-</button>`; container.appendChild(div); if (bVal) div.querySelector(\"select[name='currency_bases[]']\").value = bVal; if (tVal) div.querySelector(\"select[name='currency_targets[]']\").value = tVal; if (mVal) div.querySelector(\"select[name='currency_multipliers[]']\").value = mVal; formDirty = true; updateRowControls('currency-list-container', 5); };");
+
+  add("['autoDetect', 'nightMode', 'showTime', 'showCalendar', 'showWeather', 'showDaylight', 'showPc', 'showCrypto', 'showCurrency', 'showStock', 'showShopify', 'showAQI', 'showMedia', 'showBambu', 'autoCycle'].forEach(id => { var el=document.getElementById(id); if(el) el.addEventListener('change', updateVisibility); });");
   add("updateVisibility();");
 
   add("const countryGreetings = {");
@@ -685,21 +707,20 @@ void WebServerService::handleRoot() {
   add("const list = document.getElementById('sortable-list');");
   add("const orderInput = document.getElementById('screenOrderInput');");
 
+  add("function applyLiveTheme() { const root = document.documentElement; root.style.setProperty('--base-bg', document.getElementById('theme_bg').value); root.style.setProperty('--base-surface', document.getElementById('theme_card').value); root.style.setProperty('--base-primary', document.getElementById('theme_accent').value); root.style.setProperty('--base-text', document.getElementById('theme_text').value); }");
+  add("['theme_bg', 'theme_card', 'theme_accent', 'theme_text'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('input', applyLiveTheme); });");
+
   add("function syncScreenOrder() {");
   add("  const items = [...list.querySelectorAll('.sortable-item')];");
   add("  let enabled = [], disabled = [];");
   add("  items.forEach(item => {");
   add("    const targetId = item.getAttribute('data-target');");
   add("    const cb = document.getElementById(targetId);");
-  add("    if (cb && cb.checked) {");
-  add("      item.classList.remove('disabled'); item.setAttribute('draggable', 'true'); enabled.push(item);");
-  add("    } else {");
-  add("      item.classList.add('disabled'); item.removeAttribute('draggable'); disabled.push(item);");
-  add("    }");
+  add("    if (cb && cb.checked) { item.classList.remove('disabled'); item.setAttribute('draggable', 'true'); enabled.push(item); }");
+  add("    else { item.classList.add('disabled'); item.removeAttribute('draggable'); disabled.push(item); }");
   add("  });");
   add("  list.innerHTML = '';");
-  add("  enabled.forEach(el => list.appendChild(el));"); 
-  add("  disabled.forEach(el => list.appendChild(el));"); 
+  add("  enabled.forEach(el => list.appendChild(el)); disabled.forEach(el => list.appendChild(el));"); 
   add("  updateOrderValue();");
   add("}");
 
@@ -707,10 +728,7 @@ void WebServerService::handleRoot() {
   add("  const container = document.getElementById('dynamic-panels-container');");
   add("  if (!container || !orderCsv) return;");
   add("  const orderArr = orderCsv.split(',');");
-  add("  orderArr.forEach(id => {");
-  add("    const panel = document.getElementById('panel-' + id);");
-  add("    if (panel) container.appendChild(panel);");
-  add("  });");
+  add("  orderArr.forEach(id => { const panel = document.getElementById('panel-' + id); if (panel) container.appendChild(panel); });");
   add("}");
 
   add("function updateOrderValue() {");
@@ -719,7 +737,7 @@ void WebServerService::handleRoot() {
   add("  reorderPhysicalPanels(orderInput.value);");
   add("}");
 
-  add("const panelCheckboxes = ['showTime', 'showCalendar', 'showWeather', 'showAQI', 'showCrypto', 'showCurrency', 'showStock', 'showShopify', 'showPc', 'showMedia', 'showBambu'];");
+  add("const panelCheckboxes = ['showTime', 'showCalendar', 'showWeather', 'showAQI', 'showDaylight', 'showCrypto', 'showCurrency', 'showStock', 'showShopify', 'showPc', 'showMedia', 'showBambu'];");
   add("panelCheckboxes.forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('change', syncScreenOrder); });");
 
   add("function getDragAfterEl(y) {");
@@ -765,9 +783,51 @@ void WebServerService::handleRoot() {
   add("syncScreenOrder();");
   
   add("document.querySelector('form').addEventListener('submit', function(e) {");
-  add("  let mask = 0;");
-  add("  document.querySelectorAll('.anim-chk').forEach(cb => { if(cb.checked) mask += parseInt(cb.value); });");
-  add("  document.getElementById('finalMask').value = mask;");
+  add("  e.preventDefault();");
+  add("  let mask = 0; document.querySelectorAll('.anim-chk').forEach(cb => { if(cb.checked) mask += parseInt(cb.value); });");
+  add("  const formData = new FormData(e.target);");
+  add("  const jsonObj = {};");
+  add("  formData.forEach((value, key) => {");
+  add("    if (value === 'on') jsonObj[key] = 1;");
+  add("    else if (!isNaN(value) && value.trim() !== '') jsonObj[key] = Number(value);");
+  add("    else jsonObj[key] = value;");
+  add("  });");
+
+  add("  e.target.querySelectorAll('input[type=\"checkbox\"]').forEach(cb => { jsonObj[cb.name] = cb.checked ? 1 : 0; });");
+  add("  jsonObj['stock_symbols'] = Array.from(e.target.querySelectorAll('select[name=\"stock_symbols[]\"]')).map(s => s.value);");
+  add("  jsonObj['crypto_ids'] = Array.from(e.target.querySelectorAll('select[name=\"crypto_ids[]\"]')).map(s => Number(s.value));");
+  add("  jsonObj['currency_bases'] = Array.from(e.target.querySelectorAll('select[name=\"currency_bases[]\"]')).map(s => s.value);");
+  add("  jsonObj['currency_targets'] = Array.from(e.target.querySelectorAll('select[name=\"currency_targets[]\"]')).map(s => s.value);");
+  add("  jsonObj['currency_multipliers'] = Array.from(e.target.querySelectorAll('select[name=\"currency_multipliers[]\"]')).map(s => Number(s.value));");
+  add("  jsonObj['anim_mask'] = mask;");
+  add("  jsonObj['screen_order'] = document.getElementById('screenOrderInput').value;");
+
+  add("  const btn = document.querySelector('button[type=\"submit\"]');");
+  add("  btn.innerText = '⏳ Saving...';");
+  add("  btn.style.opacity = '0.7';");
+  add("  btn.disabled = true;");
+  
+  add("  fetch('/save', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(jsonObj) })");
+  add("    .then(r => {");
+  add("      if (r.ok) {");
+  add("        btn.innerText = '✅ Saved Successfully!';");
+  add("        btn.style.backgroundColor = 'var(--text-main)';");
+  add("        formDirty = false;");
+  add("        setTimeout(updateData, 1000);");
+  add("      } else { throw new Error('Backend Error'); }");
+  add("    })");
+  add("    .catch(e => {");
+  add("      btn.innerText = '❌ Failed to Save';");
+  add("      btn.style.backgroundColor = 'var(--text-main)';");
+  add("    })");
+  add("    .finally(() => {");
+  add("      setTimeout(() => {");
+  add("        btn.innerText = '💾 Save & Apply All Settings';");
+  add("        btn.style.backgroundColor = 'var(--primary-main)';");
+  add("        btn.style.opacity = '1';");
+  add("        btn.disabled = false;");
+  add("      }, 3000);");
+  add("    });");
   add("});");
   
   add("formDirty = false;");
@@ -783,6 +843,12 @@ void WebServerService::handleRoot() {
   add("  const setRadio = (name, val) => { const el = document.querySelector('[name=\"'+name+'\"][value=\"'+val+'\"]'); if(el) el.checked = true; };");
 
   add("  if (d.refresh_min !== undefined && !formDirty) {");
+  add("    setVal('theme_bg', d.theme_bg || '#000000'); setVal('theme_card', d.theme_card || '#111111'); setVal('theme_accent', d.theme_accent || '#ffffff'); setVal('theme_text', d.theme_text || '#ffffff'); applyLiveTheme();");
+  add("    setVal('sda_pin', d.sda_pin);");
+  add("    setVal('scl_pin', d.scl_pin);");
+  add("    setVal('touch_pin', d.touch_pin);");
+  add("    updatePinSelects();");
+  
   add("    setVal('refresh_min', d.refresh_min);");
   add("    setCb('autoCycle', d.auto_cycle);");
   add("    setVal('screen_int', d.screen_int);");
@@ -814,25 +880,23 @@ void WebServerService::handleRoot() {
   add("    setCb('showWeather', d.show_weather);");
   add("    setRadio('temp_unit', d.temp_unit);");
   add("    setCb('round_temps', d.round_temps, true);");
+  add("    setCb('weather_hide_bar', d.weather_hide_bar, true);");
 
   add("    setCb('showAQI', d.show_aqi);");
   add("    setRadio('aqi_type', d.aqi_type);");
+  add("    setCb('aqi_hide_bar', d.aqi_hide_bar, true);");
+
+  add("    setCb('showDaylight', d.show_daylight);");
+  add("    setCb('daylight_min', d.daylight_min, true);");
 
   add("    setCb('showPc', d.show_pc);");
 
-  add("    setCb('showStock', d.show_stock);");
-  add("    setVal('stock_symbol', d.stock_symbol);");
-  
-  add("    setCb('stock_fn', d.stock_fn, true);");
-  add("    setCb('showCrypto', d.show_crypto);");
-  add("    setVal('crypto_id', d.crypto_id);");
-  add("    setCb('crypto_fn', d.crypto_fn, true);");
-  
-  add("    setCb('showCurrency', d.show_currency);");
-  add("    setVal('currency_base', d.currency_base);");
-  add("    setVal('currency_target', d.currency_target);");
-  add("    setVal('currency_multiplier', d.currency_multiplier);");
-  add("    setCb('currency_fn', d.currency_fn, true);");
+  add("    setCb('showStock', d.show_stock); setCb('stock_fn', d.stock_fn, true);");
+  add("    const stCont = document.getElementById('stock-list-container'); if (stCont) { stCont.innerHTML = ''; (d.stock_symbols && d.stock_symbols.length > 0 ? d.stock_symbols : ['AAPL']).forEach(s => window.addStockRow(s)); }");
+  add("    setCb('showCrypto', d.show_crypto); setCb('crypto_fn', d.crypto_fn, true);");
+  add("    const crCont = document.getElementById('crypto-list-container'); if (crCont) { crCont.innerHTML = ''; (d.crypto_ids && d.crypto_ids.length > 0 ? d.crypto_ids : [90]).forEach(c => window.addCryptoRow(c)); }");
+  add("    setCb('showCurrency', d.show_currency); setCb('currency_fn', d.currency_fn, true);");
+  add("    const cuCont = document.getElementById('currency-list-container'); if (cuCont) { cuCont.innerHTML = ''; if (d.currency_bases && d.currency_bases.length > 0) { for(let i=0; i<d.currency_bases.length; i++) window.addCurrencyRow(d.currency_bases[i], d.currency_targets[i], d.currency_multipliers[i]); } else { window.addCurrencyRow('usd', 'eur', 1); } }");
 
   add("    setCb('showShopify', d.show_shopify);");
   add("    setVal('shopify_url', d.shopify_url);");
@@ -898,29 +962,32 @@ void WebServerService::handleRoot() {
   add("    set('aqi-upd', 'Last Update: ' + d.update_time);");
   add("  } else { hide('aqi-no-data', false); hide('aqi-grid', true); }");
 
-  add("  if (d.crypto_price !== undefined && d.crypto_price !== 'nan') {");
-  add("    if (!set('crypto-price', d.crypto_price + '$')) { location.reload(); return; }");
-  add("    hide('crypto-no-data', true); hide('crypto-grid', false);");
-  add("    set('crypto-change', d.crypto_change + '%');");
-  add("    set('crypto-trend-icon', parseFloat(d.crypto_change) >= 0 ? '📈' : '📉');");
-  add("    set('crypto-upd', 'Last Update: ' + d.update_time);");
+  add("  if (d.sunrise !== undefined) {");
+  add("    hide('daylight-no-data', true); hide('daylight-grid', false);");
+  add("    set('val-sunrise', d.sunrise);");
+  add("    set('val-sunset', d.sunset);");
+  add("    set('val-noon', d.solar_noon);");
+  add("    set('val-length', d.day_length);");
+  add("    set('daylight-upd', 'Last Update: ' + d.update_time);");
+  add("  } else { hide('daylight-no-data', false); hide('daylight-grid', true); }");
+
+  add("  if (d.stock_data && d.stock_data.length > 0) {");
+  add("    hide('stock-no-data', true); hide('stock-grid', false); let p='', c='';");
+  add("    d.stock_data.forEach(s => { p += s.symbol + ': $' + s.price + '<br>'; c += (parseFloat(s.change) >= 0 ? '+' : '') + s.change + '%<br>'; });");
+  add("    set('stock-price', p, true); set('stock-change', c, true); set('stock-upd', 'Last Update: ' + d.update_time);");
+  add("  } else { hide('stock-no-data', false); hide('stock-grid', true); }");
+
+  add("  if (d.crypto_data && d.crypto_data.length > 0) {");
+  add("    hide('crypto-no-data', true); hide('crypto-grid', false); let p='', c='';");
+  add("    d.crypto_data.forEach(s => { p += s.symbol + ': $' + s.price + '<br>'; c += (parseFloat(s.change) >= 0 ? '+' : '') + s.change + '%<br>'; });");
+  add("    set('crypto-price', p, true); set('crypto-change', c, true); set('crypto-upd', 'Last Update: ' + d.update_time);");
   add("  } else { hide('crypto-no-data', false); hide('crypto-grid', true); }");
 
-  add("  if (d.currency_base_text !== undefined) {");
-  add("    if (!set('currency-base-val', d.currency_base_text)) { location.reload(); return; }");
-  add("    hide('currency-no-data', true); hide('currency-grid', false);");
-  add("    set('currency-target-val', d.currency_target_text);");
-  add("    set('currency-upd', 'Last Update: ' + d.update_time);");
+  add("  if (d.currency_data && d.currency_data.length > 0) {");
+  add("    hide('currency-no-data', true); hide('currency-grid', false); let b='', t='';");
+  add("    d.currency_data.forEach(s => { b += s.base_text + '<br>'; t += s.target_text + '<br>'; });");
+  add("    set('currency-base-val', b, true); set('currency-target-val', t, true); set('currency-upd', 'Last Update: ' + d.update_time);");
   add("  } else { hide('currency-no-data', false); hide('currency-grid', true); }");
-  
-  add("  if (d.stock_price !== undefined && d.stock_price !== 'nan') {");
-  add("    if (!set('stock-price', '$' + d.stock_price)) { location.reload(); return; }");
-  add("    hide('stock-no-data', true); hide('stock-grid', false);");
-  add("    set('stock-change', d.stock_change + '%');");
-  add("    set('stock-trend-icon', parseFloat(d.stock_change) >= 0 ? '📈' : '📉');");
-  add("    set('stock-sym', d.stock_symbol + ' Price');"); 
-  add("    set('stock-upd', 'Last Update: ' + d.update_time);");
-  add("  } else { hide('stock-no-data', false); hide('stock-grid', true); }");
 
   add("  if (d.shopify_sales !== undefined && d.shopify_sales !== 'nan') {");
   add("    if (!set('shopify-sales', d.shopify_currency + ' ' + d.shopify_sales)) { location.reload(); return; }");
@@ -968,391 +1035,23 @@ void WebServerService::handleRoot() {
 }
 
 void WebServerService::handleSave() {
-  Config& config = state->config;
-  WeatherData& weather = state->weather;
-  AirQualityData& aqi = state->aqi;
-  CryptoData& crypto = state->crypto;
-  CurrencyData& currency = state->currency;
-  StockData& stock = state->stock;
-  ShopifyData& shopify = state->shopify;
-  PcStats& pc = state->pc;
-  PcMedia& media = state->media;
-
-  // 1. Update Screen Visibility & Master Toggles
-  config.auto_detect = server.hasArg("auto_detect");
-  config.screen_auto_cycle = server.hasArg("auto_cycle");
-  config.night_mode = server.hasArg("night_mode");
-
-  config.show_time = server.hasArg("show_time");
-  config.show_calendar = server.hasArg("show_calendar");
-  config.show_weather = server.hasArg("show_weather");
-  config.show_aqi = server.hasArg("show_aqi");
-  config.show_crypto = server.hasArg("show_crypto");
-  config.show_pc = server.hasArg("show_pc");
-  config.show_currency = server.hasArg("show_currency");
-  config.show_stock = server.hasArg("show_stock");
-  config.show_shopify = server.hasArg("show_shopify");
-  config.show_media = server.hasArg("show_media");
-  config.show_bambu = server.hasArg("show_bambu");
-
-  config.hide_empty_pc = server.hasArg("hide_empty_pc");
-  config.hide_empty_media = server.hasArg("hide_empty_media");
-  config.hide_empty_bambu = server.hasArg("hide_empty_bambu");
-
-  if (server.hasArg("screen_order")) {
-    String orderStr = server.arg("screen_order");
-    int idx = 0;
-    int startPos = 0;
-    
-    while (startPos < orderStr.length() && idx < NUM_SCREENS) {
-      int commaPos = orderStr.indexOf(',', startPos);
-      if (commaPos == -1) {
-        config.screen_order[idx++] = orderStr.substring(startPos).toInt();
-        break;
-      } else {
-        config.screen_order[idx++] = orderStr.substring(startPos, commaPos).toInt();
-        startPos = commaPos + 1;
-      }
-    }
-  }
-
-  if (config.show_time) config.date_display = server.hasArg("date_display");
-
-  if (config.show_calendar) {
-    if (server.hasArg("cal_start")) config.calendar_start_day = server.arg("cal_start");
-    config.calendar_show_holidays = server.hasArg("cal_hol");
-    config.calendar_minimal = server.hasArg("cal_min");
-  }
-
-  if (config.show_weather) config.round_temps = server.hasArg("round_temps");
-
-  if (config.show_crypto) config.crypto_fn = server.hasArg("crypto_fn");
-  if (config.show_currency) config.currency_fn = server.hasArg("currency_fn");
-  if (config.show_stock) config.stock_fn = server.hasArg("stock_fn");
-  if (config.show_shopify) config.shopify_fn = server.hasArg("shopify_fn");
-
-  // 2. Persistent Settings: Only update if the arg is present 
-  if (server.hasArg("time_format")) config.time_format = server.arg("time_format");
-  if (server.hasArg("temp_unit")) config.temp_unit = server.arg("temp_unit");
-  if (server.hasArg("aqi_type")) config.aqi_type = server.arg("aqi_type");
-  if (server.hasArg("refresh_min")) config.refresh_interval_min = server.arg("refresh_min").toInt();
-  if (server.hasArg("screen_int")) config.screen_interval_sec = server.arg("screen_int").toInt();
-  if (server.hasArg("anim_mask")) config.anim_mask = server.arg("anim_mask").toInt();
-  if (server.hasArg("crypto_id")) config.crypto_id = server.arg("crypto_id").toInt();
-
-  // Night Mode Settings
-  if (server.hasArg("night_action")) config.night_action = server.arg("night_action").toInt();
-  if (server.hasArg("night_start")) config.night_start = server.arg("night_start");
-  if (server.hasArg("night_dim_start")) config.night_dim_start = server.arg("night_dim_start");
-  if (server.hasArg("night_end")) config.night_end = server.arg("night_end");
-
-  // Currency Settings
-  if (server.hasArg("currency_base")) {
-      config.currency_base = server.arg("currency_base"); 
-  }
-  if (server.hasArg("currency_target")) {
-      config.currency_target = server.arg("currency_target");
-  }
-  if (server.hasArg("currency_multiplier")) {
-      config.currency_multiplier = server.arg("currency_multiplier").toInt();
-  }
-
-  // Stock Settings
-  if (server.hasArg("stock_symbol")) {
-      config.stock_symbol = server.arg("stock_symbol");
-  }
-
-  // Shopify Settings
-  if (server.hasArg("shopify_url")) {
-    config.shopify_url = server.arg("shopify_url");
-  }
-  if (server.hasArg("shopify_store")) {
-    config.shopify_store_name = server.arg("shopify_store");
-  }
-
-  if (server.hasArg("bambu_ip")) {
-    config.bambu_ip = server.arg("bambu_ip");
-  }
-  if (server.hasArg("bambu_sn")) {
-    config.bambu_sn = server.arg("bambu_sn");
-  }
-  if (server.hasArg("bambu_code")) {
-    config.bambu_code = server.arg("bambu_code");
-  }
-
-  if (!config.auto_detect && server.hasArg("city")) {
-    config.city = server.arg("city"); 
-    config.latitude = server.arg("latitude").toFloat();
-    config.longitude = server.arg("longitude").toFloat();
-    config.timezone = server.arg("timezone");
-    
-    if (server.hasArg("country_code")) {
-      config.country_code = server.arg("country_code");
-      
-      for (auto c : allCountries) {
-        if (config.country_code == String(c.code)) {
-            config.country = c.name;
-            break;
-        }
-      }
-    }
-  }
-
-  // 3. Forcible Reset of Data (State clearing)
-
-  state->calendar.updated = false;
-  state->calendar.count = 0;
-  
-  if (!config.show_weather) {
-    weather.temp = NAN;
-    weather.humidity = NAN;
-    weather.apparent_temperature = NAN;
-    weather.wind_speed = NAN;
-  }
-
-  if (!config.show_aqi) {
-    aqi.aqi = NAN;
-    aqi.pm25 = NAN;
-    aqi.pm10 = NAN;
-    aqi.no2 = NAN;
-  }
-
-  if (!config.show_pc) {
-    pc.cpu_percent = 0;
-    pc.net_down_kb = 0;
-    pc.mem_percent = 0;
-    pc.disk_percent = 0;
-  }
-
-  if (!config.show_crypto) {
-    crypto.price_usd = NAN;
-    crypto.percent_change_24h = NAN;
-  }
-
-  if (!config.show_currency) {
-    currency.rate = NAN;
-    currency.updated = false;
-  }
-
-  if (!config.show_stock) {
-    stock.price = NAN;
-    stock.percent_change = NAN;
-    stock.updated = false;
-  }
-
-  if (!config.show_shopify) {
-    shopify.total_sales = NAN;
-    shopify.order_count = 0;
-    shopify.percent_change = 0.0;
-    shopify.updated = false;
-  }
-
-  if (!config.show_media) {
-    media.status = "stopped";
-    media.name = "";
-  }
-
-  if (config.refresh_interval_min <= 0) config.refresh_interval_min = 1; 
-
-  if (saveCallback) {
-    saveCallback();
+  if (!server.hasArg("plain")) {
+    server.send(HTTP_BAD_REQUEST, "text/plain", "Body not received");
+    return;
   }
   
-  server.sendHeader("Location", "/", true);
-  server.send(HTTP_REDIRECT, "text/plain", "Settings saved. Redirecting...");
+  String body = server.arg("plain");
+  
+  if (JsonSerializer::parseConfig(body.c_str(), *state)) {
+    if (saveCallback) saveCallback();
+    server.send(HTTP_OK, "text/plain", "Saved");
+  } else {
+    server.send(HTTP_BAD_REQUEST, "text/plain", "Invalid JSON");
+  }
 }
 
 void WebServerService::handleUpdate() {
-  Config& config = state->config;
-  CalendarData& calendar = state->calendar;
-  WeatherData& weather = state->weather;
-  AirQualityData& aqi = state->aqi;
-  CryptoData& crypto = state->crypto;
-  CurrencyData& currency = state->currency;
-  StockData& stock = state->stock;
-  ShopifyData& shopify = state->shopify;
-  PcStats& pc = state->pc;
-  PcMedia& media = state->media;
-  BambuData bambu = state->bambu;
-
-  DynamicJsonDocument doc(4096); 
-  
-  // Global Settings
-  doc["device_id"] = config.device_id;
-  doc["ip_address"] = config.ip_address;
-  doc["refresh_min"] = config.refresh_interval_min;
-  doc["auto_cycle"] = config.screen_auto_cycle ? 1 : 0;
-  doc["screen_int"] = config.screen_interval_sec;
-  doc["anim_mask"] = config.anim_mask;
-  doc["time_format"] = config.time_format;
-  
-  // Location Settings
-  doc["auto_detect"] = config.auto_detect ? 1 : 0;
-  doc["country"] = config.country;
-  doc["country_code"] = config.country_code;
-  doc["city"] = config.city;
-  doc["latitude"] = config.latitude;
-  doc["longitude"] = config.longitude;
-  doc["timezone"] = config.timezone;
-
-  // Night Mode Settings
-  doc["night_mode"] = config.night_mode ? 1 : 0;
-  doc["night_start"] = config.night_start;
-  doc["night_end"] = config.night_end;
-  doc["night_action"] = config.night_action;
-  doc["night_dim_start"] = config.night_dim_start;
-
-  // Screen Toggles
-  doc["show_time"] = config.show_time ? 1 : 0;
-  doc["date_display"] = config.date_display ? 1 : 0;
-
-  doc["show_calendar"] = config.show_calendar ? 1 : 0;
-  doc["cal_start"] = config.calendar_start_day;
-  doc["cal_hol"] = config.calendar_show_holidays ? 1 : 0;
-  doc["cal_min"] = config.calendar_minimal ? 1 : 0;
-  
-  doc["show_weather"] = config.show_weather ? 1 : 0;
-  doc["temp_unit"] = config.temp_unit;
-  doc["round_temps"] = config.round_temps ? 1 : 0;
-  
-  doc["show_aqi"] = config.show_aqi ? 1 : 0;
-  doc["aqi_type"] = config.aqi_type;
-  
-  doc["show_pc"] = config.show_pc ? 1 : 0;
-
-  doc["show_media"] = config.show_media ? 1 : 0;
-  doc["media_status"] = state->media.status;
-  doc["media_name"] = state->media.name;
-  
-  doc["show_stock"] = config.show_stock ? 1 : 0;
-  doc["stock_symbol"] = config.stock_symbol;
-  doc["stock_fn"] = config.stock_fn ? 1 : 0;
-  
-  doc["show_crypto"] = config.show_crypto ? 1 : 0;
-  doc["crypto_id"] = config.crypto_id;
-  doc["crypto_fn"] = config.crypto_fn ? 1 : 0;
-  
-  doc["show_currency"] = config.show_currency ? 1 : 0;
-  doc["currency_base"] = config.currency_base;
-  doc["currency_target"] = config.currency_target;
-  doc["currency_multiplier"] = config.currency_multiplier;
-  doc["currency_fn"] = config.currency_fn ? 1 : 0;
-
-  doc["show_shopify"] = config.show_shopify ? 1 : 0;
-  doc["shopify_url"] = config.shopify_url;
-  doc["shopify_store"] = config.shopify_store_name;
-  doc["shopify_fn"] = config.shopify_fn ? 1 : 0;
-
-  doc["show_bambu"] = config.show_bambu ? 1 : 0;
-
-  doc["bambu_ip"] = config.bambu_ip;
-  doc["bambu_sn"] = config.bambu_sn;
-  doc["bambu_code"] = config.bambu_code;
-
-  doc["hide_empty_pc"] = config.hide_empty_pc ? 1 : 0;
-  doc["hide_empty_media"] = config.hide_empty_media ? 1 : 0;
-  doc["hide_empty_bambu"] = config.hide_empty_bambu ? 1 : 0;
-
-  String orderStr = "";
-  for(int i = 0; i < NUM_SCREENS; i++) {
-      orderStr += String(config.screen_order[i]);
-      if(i < NUM_SCREENS - 1) orderStr += ",";
-  }
-  doc["screen_order"] = orderStr;
-  
-  doc["time"] = getCurrentTimeShort(config.time_format);
-  doc["date"] = getFullDate();
-  doc["cal_count"] = calendar.count;
-  doc["update_time"] = weather.update_time;
-
-  if (!isnan(weather.temp)) {
-    doc["temp"] = String(weather.temp, 1);
-    doc["apparent_temperature"] = String(weather.apparent_temperature, 1);
-    doc["humidity"] = String(weather.humidity);
-    doc["wind_speed"] = String(weather.wind_speed, 1);
-    doc["weather_code"] = weather.weather_code;
-  }
-
-  if (!isnan(aqi.pm25) && !isnan(aqi.pm10) && !isnan(aqi.no2)) {
-    doc["aqi"] = String(aqi.aqi);
-    doc["aqi_status"] = aqi.status;
-    doc["pm25"] = String(aqi.pm25, 1);
-    doc["pm10"] = String(aqi.pm10, 1);
-    doc["no2"] = String(aqi.no2, 1);
-  }
-
-  if (!isnan(crypto.price_usd) && crypto.price_usd > 0) {
-    doc["crypto_symbol"] = String(crypto.symbol);
-    doc["crypto_price"] = String(crypto.price_usd);
-    doc["crypto_change"] = String(crypto.percent_change_24h);
-  }
-  
-  if (currency.updated) {
-    float displayRate = currency.rate * config.currency_multiplier;
-    
-    int decimals = 0;
-    if (displayRate < 10.0) decimals = 3;
-    else if (displayRate < 100.0) decimals = 2;
-    else if (displayRate < 1000.0) decimals = 1;
-    
-    doc["currency_base_text"] = String(config.currency_multiplier) + " " + currency.base;
-    doc["currency_target_text"] = String(displayRate, decimals) + " " + currency.target;
-    doc["currency_date"] = currency.date;
-  }
-  
-  if (stock.updated) {
-    doc["stock_symbol"] = stock.symbol;
-    doc["stock_price"] = String(stock.price, 2);
-    doc["stock_change"] = String(stock.percent_change, 2);
-  }
-
-  if (shopify.updated && !isnan(shopify.total_sales) && shopify.currency.length() > 0) {
-    doc["shopify_store_live"] = shopify.store;
-    doc["shopify_currency"] = shopify.currency;
-    doc["shopify_sales"] = String(shopify.total_sales, 2);
-    doc["shopify_orders"] = shopify.order_count;
-    doc["shopify_change"] = String(shopify.percent_change, 1);
-    doc["shopify_period"] = shopify.period;
-  }
-
-  if (pc.cpu_percent > 0.1) {
-    doc["pc_cpu"] = String(pc.cpu_percent);
-    doc["pc_net"] = String(pc.net_down_kb);
-    doc["pc_ram"] = String(pc.mem_percent);
-    doc["pc_disk"] = String(pc.disk_percent);
-  }
-
-  if (media.status.length() > 0) {
-    doc["media_status"] = media.status;
-    doc["media_name"] = media.name;
-    doc["media_author"] = media.author;
-    doc["media_album"] = media.album;
-  }
-
-  if (bambu.status != "SYNCING") {
-    doc["bambu_status"] = bambu.status;
-    doc["bambu_progress"] = bambu.progress;
-    doc["bambu_time"] = bambu.time_left;
-    doc["bambu_layer"] = bambu.layer;
-    doc["bambu_total_layers"] = bambu.total_layers;
-    doc["bambu_nozzle"] = String(bambu.nozzle_temp, 1);
-    doc["bambu_nozzle_target"] = String(bambu.nozzle_target, 1);
-    doc["bambu_bed"] = String(bambu.bed_temp, 1);
-    doc["bambu_bed_target"] = String(bambu.bed_target, 1);
-    doc["bambu_fan_part"] = bambu.fan_part;
-    doc["bambu_fan_aux"] = bambu.fan_aux;
-  }
-
-  String activeId = config.active_pc_id;
-  int lastDashSync = activeId.lastIndexOf(':');
-  if (lastDashSync > 3) activeId = activeId.substring(0, lastDashSync);
-
-  bool isPcPaired = (activeId != "" && (millis() - pc.last_update < PC_DATA_TIMEOUT_MS));
-  doc["pc_status"] = isPcPaired ? ("🔒 Paired to " + activeId) : "";
-  
-  String jsonResponse;
-  serializeJson(doc, jsonResponse);
-  
+  String jsonResponse = JsonSerializer::buildAppStateJson(*state);
   server.send(HTTP_OK, "application/json", jsonResponse);
 }
 

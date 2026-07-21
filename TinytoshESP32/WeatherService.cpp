@@ -40,7 +40,8 @@ bool WeatherService::fetchWeather(const Config& config, WeatherData& data, const
   Serial.println("WeatherService: Requesting weather data from: " + url); 
   http.setReuse(false); 
   http.begin(url);
-  http.setTimeout(10000); 
+  http.setConnectTimeout(5000); 
+  http.setTimeout(5000);
   int httpCode = http.GET();
 
   if (httpCode == HTTP_CODE_OK) {

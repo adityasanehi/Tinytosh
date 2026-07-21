@@ -32,10 +32,6 @@ private:
     ConfigSaveCallback saveCallback;
     
     AppState* state;
-
-    String getWeatherIcon(int wmo_code);
-    String getCurrentTimeShort(String format);
-    String getFullDate();
 };
 
 #endif

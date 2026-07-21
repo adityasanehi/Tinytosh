@@ -35,14 +35,25 @@
           <label for="autostart-cb" class="mt-0">Start on Boot</label>
         </div>
         
-        <button id="conn-btn" class="btn-blue">Connect</button>
+        <button id="conn-btn" class="btn-secondary">Connect</button>
         <p id="status-text" class="status-badge mt-25">Waiting for connection...</p>
+      </div>
+
+      <div class="panel hidden" id="logs-panel">
+        <div class="panel-header-flex">
+          <h3 class="panel-title">USB Device Logs</h3>
+          <div class="panel-header-actions">
+            <button type="button" id="toggle-logs-btn" class="btn-secondary btn-small">START</button>
+            <button type="button" id="clear-logs-btn" class="btn-secondary btn-small">CLEAR</button>
+          </div>
+        </div>
+        <div id="log-container" class="log-container hidden"></div>
       </div>
 
       <div class="panel">
         <h3 class="panel-title">Now Playing</h3>
         <div class="identity-box" style="margin-top: 10px;">
-          <div id="media-status" class="status-badge" style="margin-bottom: 5px; color: #888;">STOPPED</div>
+          <div id="media-status" class="status-badge" style="margin-bottom: 5px; color: var(--text-muted);">STOPPED</div>
           <div id="media-name" class="id-text" style="font-size: 1.3rem;">No Media</div>
           <div id="media-author" class="ip-text hidden"></div>
           <div id="media-album" class="tile-label hidden"></div>
@@ -67,7 +78,7 @@
           <div class="telemetry-tile">
             <div class="tile-value">
                 <span id="dl-val">--</span>
-                <span id="dl-unit" style="font-size: 0.75rem; color: #888;">KB/s</span>
+                <span id="dl-unit" style="font-size: 0.75rem; color: var(--text-muted);">KB/s</span>
             </div>
             <div class="tile-label">Net</div>
           </div>
@@ -80,8 +91,38 @@
         </div>
 
         <div id="config-wrapper" class="hidden">
+          
+          <div class="panel">
+            <h3 class="panel-title">Hardware Setup</h3>
+            <div class="dashboard-grid mt-0">
+              <div>
+                <label class="mt-0">I2C SDA Pin:</label>
+                <select name="sda_pin" class="hw-pin"></select>
+              </div>
+              <div>
+                <label class="mt-0">I2C SCL Pin:</label>
+                <select name="scl_pin" class="hw-pin"></select>
+              </div>
+            </div>
+            <label class="mt-0">Touch Sensor GPIO Pin:</label>
+            <select name="touch_pin" class="hw-pin"></select>
+            <p class="help-text mt-0">Reboot Tinytosh to apply any hardware pin changes.</p>
+          </div>
+
           <div class="panel">
             <h3 class="panel-title">Global Settings</h3>
+
+            <label class="mt-0">Color Theme:</label>
+            <p class="help-text mt-0">Customize the 4 base colors to recolor the entire app interface.</p>
+            <div class="dashboard-grid mt-0">
+              <div><label class="mt-0">App Background:</label><input type="color" name="theme_bg" id="theme_bg" value="#000000"></div>
+              <div><label class="mt-0">Surface / Panels:</label><input type="color" name="theme_card" id="theme_card" value="#111111"></div>
+              <div><label class="mt-0">Primary Accent (Highlights):</label><input type="color" name="theme_accent" id="theme_accent" value="#ffffff"></div>
+              <div><label class="mt-0">Main Text:</label><input type="color" name="theme_text" id="theme_text" value="#ffffff"></div>
+            </div>
+
+            <hr>
+
             <label>Data Sync Interval (Mins):</label><input type="number" name="refresh_min" value="15">
             
             <label class="checkbox-label"><input type="checkbox" id="autoCycle" name="auto_cycle"> Cycle Screens Automatically</label>
@@ -151,18 +192,19 @@
 
           <div class="panel">
             <h3 class="panel-title">Screen Display Order</h3>
-            <p class="help-text order-help">Drag and drop to rearrange. Disabled screens are locked at the bottom.</p>
+            <p class="help-text order-help">Use the UP/DOWN arrows to rearrange. Disabled screens are locked at the bottom.</p>
             <ul id="sortable-list" class="sortable-list">
-              <li class="sortable-item" data-id="0" data-target="showTime" draggable="true"><span class="drag-handle">☰</span>Time & Date</li>
-              <li class="sortable-item" data-id="1" data-target="showCalendar" draggable="true"><span class="drag-handle">☰</span>Calendar</li>
-              <li class="sortable-item" data-id="2" data-target="showWeather" draggable="true"><span class="drag-handle">☰</span>Weather</li>
-              <li class="sortable-item" data-id="3" data-target="showAQI" draggable="true"><span class="drag-handle">☰</span>Air Quality</li>
-              <li class="sortable-item" data-id="4" data-target="showStock" draggable="true"><span class="drag-handle">☰</span>Stock Tracking</li>
-              <li class="sortable-item" data-id="5" data-target="showCrypto" draggable="true"><span class="drag-handle">☰</span>Crypto Tracking</li>
-              <li class="sortable-item" data-id="6" data-target="showCurrency" draggable="true"><span class="drag-handle">☰</span>Currency Exchange</li>
-              <li class="sortable-item" data-id="7" data-target="showPc" draggable="true"><span class="drag-handle">☰</span>PC Monitor</li>
-              <li class="sortable-item" data-id="8" data-target="showMedia" draggable="true"><span class="drag-handle">☰</span>PC Media</li>
-              <li class="sortable-item" data-id="9" data-target="showBambu" draggable="true"><span class="drag-handle">☰</span>Printer Info</li>
+              <li class="sortable-item" data-id="0" data-target="showTime"><div class="order-ctrl"><span class="move-btn move-up">▲</span><span class="move-btn move-down">▼</span></div>Time & Date</li>
+              <li class="sortable-item" data-id="1" data-target="showCalendar"><div class="order-ctrl"><span class="move-btn move-up">▲</span><span class="move-btn move-down">▼</span></div>Calendar</li>
+              <li class="sortable-item" data-id="2" data-target="showWeather"><div class="order-ctrl"><span class="move-btn move-up">▲</span><span class="move-btn move-down">▼</span></div>Weather</li>
+              <li class="sortable-item" data-id="3" data-target="showAQI"><div class="order-ctrl"><span class="move-btn move-up">▲</span><span class="move-btn move-down">▼</span></div>Air Quality</li>
+              <li class="sortable-item" data-id="4" data-target="showDaylight"><div class="order-ctrl"><span class="move-btn move-up">▲</span><span class="move-btn move-down">▼</span></div>Daylight Info</li>
+              <li class="sortable-item" data-id="5" data-target="showStock"><div class="order-ctrl"><span class="move-btn move-up">▲</span><span class="move-btn move-down">▼</span></div>Stock Tracking</li>
+              <li class="sortable-item" data-id="6" data-target="showCrypto"><div class="order-ctrl"><span class="move-btn move-up">▲</span><span class="move-btn move-down">▼</span></div>Crypto Tracking</li>
+              <li class="sortable-item" data-id="7" data-target="showCurrency"><div class="order-ctrl"><span class="move-btn move-up">▲</span><span class="move-btn move-down">▼</span></div>Currency Exchange</li>
+              <li class="sortable-item" data-id="8" data-target="showPc"><div class="order-ctrl"><span class="move-btn move-up">▲</span><span class="move-btn move-down">▼</span></div>PC Monitor</li>
+              <li class="sortable-item" data-id="9" data-target="showMedia"><div class="order-ctrl"><span class="move-btn move-up">▲</span><span class="move-btn move-down">▼</span></div>PC Media</li>
+              <li class="sortable-item" data-id="10" data-target="showBambu"><div class="order-ctrl"><span class="move-btn move-up">▲</span><span class="move-btn move-down">▼</span></div>Printer Info</li>
             </ul>
             <input type="hidden" name="screen_order" id="screenOrderInput">
           </div>
@@ -215,6 +257,7 @@
                   <label class="radio-label"><input type="radio" name="temp_unit" value="F"> °F</label>
                 </div>
                 <label class="checkbox-label"><input type="checkbox" name="round_temps"> Round Temperature Values</label>
+                <label class="checkbox-label"><input type="checkbox" name="weather_hide_bar"> Hide Top Bar (Location & Time)</label>
               </div>
             </div>
 
@@ -237,68 +280,78 @@
                   <label class="radio-label"><input type="radio" name="aqi_type" value="EU"> European Standard</label>
                 </div>
                 <p class='help-text mt-0'>EU: 0-100+ scale | US: 0-500 scale</p>
+                <label class="checkbox-label"><input type="checkbox" name="aqi_hide_bar"> Hide Top Bar (Location & Time)</label>
               </div>
             </div>
 
             <div class="panel" id="panel-4">
+              <label class="checkbox-label mt-0"><input type="checkbox" id="showDaylight" name="show_daylight"> Daylight Screen</label>
+              <div id="daylightContent" class="collapsible">
+                <div id="daylight-no-data" class="no-data-tile">☀️ Daylight data will be available after sync</div>
+                <div id="daylight-grid" class="hidden">
+                    <div class="dashboard-grid">
+                      <div class="tile"><div class="tile-icon">🌅</div><div class="tile-value" id="val-sunrise">--:--</div><div class="tile-label">Sunrise</div></div>
+                      <div class="tile"><div class="tile-icon">🌇</div><div class="tile-value" id="val-sunset">--:--</div><div class="tile-label">Sunset</div></div>
+                      <div class="tile"><div class="tile-icon">☀️</div><div class="tile-value" id="val-noon">--:--</div><div class="tile-label">Solar Noon</div></div>
+                      <div class="tile"><div class="tile-icon">⏱️</div><div class="tile-value" id="val-length">--</div><div class="tile-label">Day Length</div></div>
+                    </div>
+                </div>
+                <label class="checkbox-label"><input type="checkbox" name="daylight_min"> Minimalistic Mode (Hide timeline)</label>
+              </div>
+            </div>
+
+            <div class="panel" id="panel-5">
               <label class="checkbox-label mt-0"><input type="checkbox" id="showStock" name="show_stock"> Stock Tracking Screen</label>
               <div id="stockContent" class="collapsible">
                 <div id="stock-no-data" class="no-data-tile">📈 Stock data will be available after sync</div>
                 <div id="stock-grid" class="hidden">
                     <div class="dashboard-grid">
-                      <div class="tile"><div class="tile-icon">📊</div><div class="tile-value" id="stock-price">--</div><div class="tile-label" id="stock-sym">Stock Price</div></div>
-                      <div class="tile"><div class="tile-icon" id="stock-trend-icon">-</div><div class="tile-value" id="stock-change">--%</div><div class="tile-label">Daily Change</div></div>
+                      <div class="tile"><div class="tile-icon">📊</div><div class="tile-value" id="stock-price" style="font-size:1.0rem; line-height:1.5;">--</div><div class="tile-label">PRICES</div></div>
+                      <div class="tile"><div class="tile-icon">📈</div><div class="tile-value" id="stock-change" style="font-size:1.0rem; line-height:1.5;">--</div><div class="tile-label">24H CHANGE</div></div>
                     </div>
                     <div class="update-footer" id="stock-upd">Last Update: --</div>
                 </div>
-                <label>Track Stock/ETF:</label>
-                <select name="stock_symbol"></select>
+                <div id="stock-list-container"></div>
+                <button type="button" class="btn-blue" onclick="addStockRow()">+ Add Stock / ETF</button>
                 <label class="checkbox-label"><input type="checkbox" name="stock_fn"> Display Full Company Name</label>
               </div>
             </div>
 
-            <div class="panel" id="panel-5">
+            <div class="panel" id="panel-6">
               <label class="checkbox-label mt-0"><input type="checkbox" id="showCrypto" name="show_crypto"> Crypto Tracking Screen</label>
               <div id="cryptoContent" class="collapsible">
                 <div id="crypto-no-data" class="no-data-tile">💰 Crypto data will be available after sync</div>
                 <div id="crypto-grid" class="hidden">
                     <div class="dashboard-grid">
-                      <div class="tile"><div class="tile-icon">₿</div><div class="tile-value" id="crypto-price">--$</div><div class="tile-label" id="crypto-sym">Crypto Price</div></div>
-                      <div class="tile"><div class="tile-icon" id="crypto-trend-icon">-</div><div class="tile-value" id="crypto-change">--%</div><div class="tile-label">24h Change</div></div>
+                      <div class="tile"><div class="tile-icon">₿</div><div class="tile-value" id="crypto-price" style="font-size:1.0rem; line-height:1.5;">--</div><div class="tile-label">PRICES</div></div>
+                      <div class="tile"><div class="tile-icon">📈</div><div class="tile-value" id="crypto-change" style="font-size:1.0rem; line-height:1.5;">--</div><div class="tile-label">24H CHANGE</div></div>
                     </div>
                     <div class="update-footer" id="crypto-upd">Last Update: --</div>
                 </div>
-                <label>Track Cryptocurrency:</label>
-                <select name="crypto_id"></select>
+                <div id="crypto-list-container"></div>
+                <button type="button" class="btn-blue" onclick="addCryptoRow()">+ Add Cryptocurrency</button>
                 <label class="checkbox-label"><input type="checkbox" name="crypto_fn"> Display Full Coin Name</label>
               </div>
             </div>
 
-            <div class="panel" id="panel-6">
+            <div class="panel" id="panel-7">
               <label class="checkbox-label mt-0"><input type="checkbox" id="showCurrency" name="show_currency"> Currency Exchange Screen</label>
               <div id="currencyContent" class="collapsible">
                 <div id="currency-no-data" class="no-data-tile">💱 Currency data will be available after sync</div>
                 <div id="currency-grid" class="hidden">
                     <div class="dashboard-grid">
-                      <div class="tile"><div class="tile-icon">💵</div><div class="tile-value" id="currency-base-val">--</div><div class="tile-label">Base Currency</div></div>
-                      <div class="tile"><div class="tile-icon">💱</div><div class="tile-value" id="currency-target-val">--</div><div class="tile-label">Target Currency</div></div>
+                      <div class="tile"><div class="tile-icon">💵</div><div class="tile-value" id="currency-base-val" style="font-size:1.0rem; line-height:1.5;">--</div><div class="tile-label">BASE</div></div>
+                      <div class="tile"><div class="tile-icon">💱</div><div class="tile-value" id="currency-target-val" style="font-size:1.0rem; line-height:1.5;">--</div><div class="tile-label">EXCHANGE RATE</div></div>
                     </div>
                     <div class="update-footer" id="currency-upd">Last Update: --</div>
                 </div>
-                <div class="dashboard-grid mt-0">
-                  <div><label>Base Currency:</label><select name="currency_base"></select></div>
-                  <div><label>Target Currency:</label><select name="currency_target"></select></div>
-                </div>
-                <label>Multiplier Amount:</label>
-                <select name="currency_multiplier">
-                  <option value="1">1</option><option value="10">10</option><option value="100">100</option>
-                  <option value="1000">1000</option><option value="10000">10000</option><option value="100000">100000</option>
-                </select>
+                <div id="currency-list-container"></div>
+                <button type="button" class="btn-blue" onclick="addCurrencyRow()">+ Add Currency Pair</button>
                 <label class="checkbox-label"><input type="checkbox" name="currency_fn"> Display Full Currency Name</label>
               </div>
             </div>
 
-            <div class="panel" id="panel-7">
+            <div class="panel" id="panel-8">
               <label class="checkbox-label mt-0"><input type="checkbox" id="showPc" name="show_pc"> PC Monitoring Screen</label>
               <div id="pcContent" class="collapsible">
                 <div id="pc-no-data" class="no-data-tile">🖥️ PC data will be available after sync</div>
@@ -315,7 +368,7 @@
               </div>
             </div>
 
-            <div class="panel" id="panel-8">
+            <div class="panel" id="panel-9">
               <label class="checkbox-label mt-0"><input type="checkbox" id="showMedia" name="show_media"> PC Media Screen</label>
               <div id="mediaContent" class="collapsible">
                 <div id="media-no-data" class="no-data-tile">🎵 Media data will be available after sync and/or when media is played</div>
@@ -332,7 +385,7 @@
               </div>
             </div>
 
-            <div class="panel" id="panel-9">
+            <div class="panel" id="panel-10">
               <label class="checkbox-label mt-0"><input type="checkbox" id="showBambu" name="show_bambu"> Bambu 3D Printer Screen</label>
               <div id="bambuContent" class="collapsible">
                 <div id="bambu-no-data" class="no-data-tile">🖨️ Printer data will be available after connection is established</div>

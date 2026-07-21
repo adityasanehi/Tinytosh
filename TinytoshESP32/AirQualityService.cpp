@@ -16,7 +16,8 @@ bool AirQualityService::fetchAirQuality(const Config& config, AirQualityData &da
   Serial.println("AirQualityService: Requesting Air Quality data from: " + url); 
   http.setReuse(false); 
   http.begin(url);
-  http.setTimeout(10000); 
+  http.setConnectTimeout(5000); 
+  http.setTimeout(5000); 
   int httpCode = http.GET();
 
   if (httpCode == 200) {

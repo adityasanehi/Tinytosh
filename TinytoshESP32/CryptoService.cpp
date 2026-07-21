@@ -10,7 +10,8 @@ bool CryptoService::fetchPrice(int id, CryptoData &data) {
     Serial.printf("CryptoService: URL: %s\n", url.c_str()); 
     http.setReuse(false); 
     http.begin(url);
-    http.setTimeout(10000);
+    http.setConnectTimeout(5000); 
+    http.setTimeout(5000);
     int httpCode = http.GET();
 
     if (httpCode == 200) {

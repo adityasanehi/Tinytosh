@@ -3,11 +3,14 @@
 
 #include <Arduino.h>
 
+const int MAX_MULTI_ENTRIES = 5;
+
 enum ScreenType {
   SCREEN_TIME,
   SCREEN_CALENDAR,
   SCREEN_WEATHER,
   SCREEN_AIR_QUALITY,
+  SCREEN_DAYLIGHT,
   SCREEN_STOCK,
   SCREEN_CRYPTO,
   SCREEN_CURRENCY,
@@ -23,6 +26,7 @@ inline constexpr const char* SCREEN_NAMES[] = {
   "Calendar",
   "Weather",
   "Air Quality",
+  "Daylight Info",
   "Stock Tracking",
   "Crypto Tracking",
   "Currency Exchange",
@@ -53,6 +57,11 @@ struct Config {
   String ip_address = "";
   String active_pc_id = "";
 
+  // Hardware Setup
+  int sda_pin = 8;
+  int scl_pin = 9;
+  int touch_pin = 10;
+
   // Global Settings
   bool auto_detect = true;
   float latitude = 0.0;
@@ -62,8 +71,14 @@ struct Config {
   String city = "";
   String timezone = ""; 
   String time_format = "24";
-  bool date_display = true;
+  bool date_display = false;
   unsigned long refresh_interval_min = 15;
+
+  // Theme Settings
+  String theme_bg = "#000000";
+  String theme_card = "#111111";
+  String theme_accent = "#ffffff";
+  String theme_text = "#ffffff";
 
   // Screens Settings
   bool screen_auto_cycle = true;
@@ -74,6 +89,7 @@ struct Config {
   bool show_calendar = true;
   bool show_weather = true;
   bool show_aqi = true;
+  bool show_daylight = true;
   bool show_stock = true;
   bool show_crypto = true;
   bool show_currency = true;
@@ -95,13 +111,24 @@ struct Config {
   bool round_temps = true; 
   String temp_unit = "C";
   String aqi_type = "US";
+  bool weather_hide_bar = false;
+  bool aqi_hide_bar = false;
+
+  // Daylight settings
+  bool daylight_minimal = false;
 
   // Crypto, Currency & Stocks Settings
-  int crypto_id;
-  String currency_base = "usd";
-  String currency_target = "eur";
-  int currency_multiplier = 1;
-  String stock_symbol = "GOOG";
+  String stock_symbols[MAX_MULTI_ENTRIES] = {"AAPL", "", "", "", ""};
+  int stock_count = 1;
+
+  int crypto_ids[MAX_MULTI_ENTRIES] = {90, 0, 0, 0, 0};
+  int crypto_count = 1;
+
+  String currency_bases[MAX_MULTI_ENTRIES] = {"usd", "", "", "", ""};
+  String currency_targets[MAX_MULTI_ENTRIES] = {"eur", "", "", "", ""};
+  int currency_multipliers[MAX_MULTI_ENTRIES] = {1, 1, 1, 1, 1};
+  int currency_count = 1;
+
   bool crypto_fn = true;
   bool currency_fn = true;
   bool stock_fn = true;
@@ -130,7 +157,7 @@ struct Config {
 struct CalendarData {
   Holiday items[30];
   int count = 0;
-  bool updated = false;
+  int last_fetch_year = -1;
 };
 
 struct WeatherData {
@@ -149,6 +176,14 @@ struct AirQualityData {
   float pm10 = NAN;
   float no2 = NAN;
   String status = "N/A";
+};
+
+struct DaylightData {
+  int sunrise_mins = -1;
+  int sunset_mins = -1;
+  int noon_mins = -1;
+  int length_mins = -1;
+  int last_fetch_yday = -1;
 };
 
 struct StockData {
@@ -446,9 +481,10 @@ struct AppState {
   CalendarData calendar;
   WeatherData weather;
   AirQualityData aqi;
-  CryptoData crypto;
-  CurrencyData currency;
-  StockData stock;
+  DaylightData daylight;
+  CryptoData cryptos[MAX_MULTI_ENTRIES];
+  CurrencyData currencies[MAX_MULTI_ENTRIES];
+  StockData stocks[MAX_MULTI_ENTRIES];
   ShopifyData shopify;
   PcStats pc;
   PcMedia media;

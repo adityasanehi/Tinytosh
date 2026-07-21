@@ -1,24 +1,23 @@
 const { invoke } = window.__TAURI__.core;
 
-
 // Constants
 
 // UI Update Intervals
-const LOCAL_TELEMETRY_INTERVAL_MS = 500;   // How often the local PC dashboard updates (matches Rust backend)
-const PORT_SCAN_INTERVAL_MS = 2000;        // How often to scan for new USB/Wi-Fi devices
-const HARDWARE_SYNC_INTERVAL_MS = 15000;   // How often to fetch full settings from the ESP32
+const LOCAL_TELEMETRY_INTERVAL_MS = 500;   
+const PORT_SCAN_INTERVAL_MS = 2000;        
+const HARDWARE_SYNC_INTERVAL_MS = 15000;   
 
 // Event Delays
-const INITIAL_SYNC_DELAY_MS = 2000;        // Delay before fetching config on app startup
-const POST_CONNECT_SYNC_DELAY_MS = 800;    // Wait time after connecting before fetching config
-const POST_SAVE_SYNC_DELAY_MS = 1000;      // Wait time after saving settings to refresh the UI
-const BUTTON_RESET_DELAY_MS = 3000;        // How long the "Saved Successfully" button stays green
+const INITIAL_SYNC_DELAY_MS = 2000;        
+const POST_CONNECT_SYNC_DELAY_MS = 800;    
+const POST_SAVE_SYNC_DELAY_MS = 1000;      
+const BUTTON_RESET_DELAY_MS = 3000;        
 
 // UI Colors
-const COLOR_SUCCESS = "#10b981";          // Green (Playing, USB, Success)
-const COLOR_INFO = "#3b82f6";             // Blue (Paused, Wi-Fi)
-const COLOR_ERROR = "#ef4444";            // Red (Errors, Failed)
-const COLOR_MUTED = "#888";               // Gray (Stopped, Not Connected)
+const COLOR_SUCCESS = "var(--text-main)";          
+const COLOR_INFO = "var(--text-main)";             
+const COLOR_ERROR = "var(--text-main)";            
+const COLOR_MUTED = "var(--text-muted)";     
 
 const countryGreetings = {
   "BY": "Жыве Беларусь ⚪🔴⚪",
@@ -219,19 +218,38 @@ const allCurrencies = [
   ["zwl", "Zimbabwean Dollar"]
 ];
 
-
 // State variables
-
 let isConnected = false;
 let isConfigLoaded = false;
 let formDirty = false;
 let currentDeviceId = "";
 let currentDeviceIp = "";
-
+let statusLockUntil = 0;
+let isLoggingPaused = true;
 
 // Functions
+function applyLiveTheme() {
+    const root = document.documentElement;
+    root.style.setProperty('--base-bg', document.getElementById('theme_bg').value);
+    root.style.setProperty('--base-surface', document.getElementById('theme_card').value);
+    root.style.setProperty('--base-primary', document.getElementById('theme_accent').value);
+    root.style.setProperty('--base-text', document.getElementById('theme_text').value);
+}
 
 function populateDropdowns() {
+    const hwPins = document.querySelectorAll('.hw-pin');
+    if (hwPins) {
+        hwPins.forEach(select => {
+            for (let i = 0; i <= 21; i++) {
+                let opt = document.createElement("option");
+                opt.value = i;
+                opt.text = "GPIO " + i;
+                select.add(opt);
+            }
+            select.addEventListener('change', updatePinSelects);
+        });
+    }
+
     const countrySelect = document.querySelector('select[name="country_code"]');
     if (countrySelect) {
         allCountries.forEach(c => {
@@ -298,11 +316,27 @@ function populateDropdowns() {
     }
 }
 
-function setUiStatus(text, color) {
+function updatePinSelects() {
+    const selects = document.querySelectorAll('.hw-pin');
+    const selectedVals = Array.from(selects).map(s => s.value);
+    selects.forEach(select => {
+        Array.from(select.options).forEach(opt => {
+            opt.disabled = selectedVals.includes(opt.value) && opt.value !== select.value;
+        });
+    });
+}
+
+function setUiStatus(text, color, lockDurationMs = 0) {
+    if (Date.now() < statusLockUntil && lockDurationMs === 0) return;
+
     const status = document.getElementById("status-text");
     if(status) {
         status.innerText = text;
         status.style.color = color;
+    }
+    
+    if (lockDurationMs > 0) {
+        statusLockUntil = Date.now() + lockDurationMs;
     }
 }
 
@@ -374,6 +408,25 @@ async function updateStats() {
                 }
             }
         }
+        if (!document.getElementById("logs-panel")?.classList.contains("hidden") && !isLoggingPaused) {
+            try {
+                const logs = await invoke("get_logs");
+                if (logs && logs.length > 0) {
+                    const logContainer = document.getElementById("log-container");
+                    if (logContainer) {
+                        logs.forEach(log => {
+                            const line = document.createElement("div");
+                            line.innerText = `> ${log}`;
+                            logContainer.appendChild(line);
+                        });
+                        while (logContainer.children.length > 150) {
+                            logContainer.removeChild(logContainer.firstChild);
+                        }
+                        logContainer.scrollTop = logContainer.scrollHeight;
+                    }
+                }
+            } catch(e) {}
+        }
     } catch (e) { }
 }
 
@@ -386,13 +439,20 @@ function handleDisconnectUI() {
         ph.classList.remove("hidden"); 
         ph.innerText = "Device configuration will be displayed after connection is established."; 
     }
+    
+    const logsPanel = document.getElementById("logs-panel");
+    if (logsPanel) logsPanel.classList.add("hidden");
+    const logContainer = document.getElementById("log-container");
+    if (logContainer) logContainer.innerHTML = "";
 }
 
 async function loadPorts() {
     try {
         const statusObj = await invoke("get_ports"); 
         const select = document.getElementById("port-select");
+        const btn = document.getElementById("conn-btn");
         const currentVal = select.value;
+        const isConnecting = btn && btn.innerText === "Connecting...";
 
         select.innerHTML = ""; 
         
@@ -409,12 +469,17 @@ async function loadPorts() {
             });
         }
 
+        if (statusObj.status_text && statusObj.status_text.includes("Scanning") && isConnecting) {
+            btn.innerText = "Connect";
+            btn.disabled = false;
+            if (select) select.disabled = false;
+        }
+
         if (statusObj.connected) {
             select.value = statusObj.connected;
             if (!isConnected) {
                 isConnected = true;
-                const btn = document.getElementById("conn-btn");
-                if(btn) { btn.innerText = "Disconnect"; btn.className = "btn-red"; }
+                if(btn) { btn.innerText = "Disconnect"; btn.className = "btn-secondary"; btn.disabled = false; }
                 if(select) select.disabled = true;
 
                 const ph = document.getElementById("config-placeholder");
@@ -425,13 +490,12 @@ async function loadPorts() {
         } else {
             if (isConnected) {
                 isConnected = false;
-                const btn = document.getElementById("conn-btn");
-                if(btn) { btn.innerText = "Connect"; btn.className = "btn-blue"; }
+                if(btn) { btn.innerText = "Connect"; btn.className = "btn-secondary"; btn.disabled = false; }
                 if(select) select.disabled = false;
                 
                 handleDisconnectUI();
             }
-            if (currentVal && statusObj.ports.includes(currentVal)) {
+            if (currentVal && statusObj.ports.includes(currentVal) && !isConnected && !isConnecting) {
                 select.value = currentVal;
             }
         }
@@ -440,6 +504,8 @@ async function loadPorts() {
             const lowerText = statusObj.status_text.toLowerCase();
             if (lowerText.includes("failed") || lowerText.includes("error") || lowerText.includes("❌")) {
                 setUiStatus(statusObj.status_text, COLOR_ERROR); 
+            } else if (lowerText.includes("connecting to")) {
+                setUiStatus(statusObj.status_text, COLOR_MUTED);
             } else if (lowerText.includes("wifi")) {
                 setUiStatus(statusObj.status_text, COLOR_INFO); 
             } else if (lowerText.includes("usb")) {
@@ -474,6 +540,12 @@ async function loadPorts() {
 
             if (isConnected && statusObj.connected) {
                 let target = statusObj.connected;
+
+                const logsPanel = document.getElementById("logs-panel");
+                if (logsPanel) {
+                    if (target.startsWith("Serial:")) logsPanel.classList.remove("hidden");
+                    else logsPanel.classList.add("hidden");
+                }
                 
                 if (target.startsWith("WiFi:")) {
                     let name = target.split(" ")[1]; 
@@ -499,32 +571,33 @@ async function loadPorts() {
 
 async function toggleConnection() {
     const select = document.getElementById("port-select");
+    const btn = document.getElementById("conn-btn");
+    
     if (!isConnected) {
         const port = select.value;
         if (!port || port === "No Ports Found") return;
         try {
             const ph = document.getElementById("config-placeholder");
-            if(ph && !isConfigLoaded) { ph.innerText = "Connection established - waiting for configuration data..."; }
+            if(ph && !isConfigLoaded) { ph.innerText = "Attempting connection..."; }
+
+            btn.innerText = "Connecting...";
+            btn.disabled = true;
+            select.disabled = true;
 
             await invoke("toggle_connection", { portName: port, connect: true });
-            isConnected = true; 
-            const btn = document.getElementById("conn-btn");
-            if(btn) { btn.innerText = "Disconnect"; btn.className = "btn-red"; }
-            if(select) select.disabled = true;
-
-            setTimeout(fetchDeviceData, POST_CONNECT_SYNC_DELAY_MS);
-
         } catch (error) {
             setUiStatus(error, COLOR_ERROR);
+            btn.innerText = "Connect";
+            btn.disabled = false;
+            select.disabled = false;
         }
     } else {
         try {
             await invoke("toggle_connection", { portName: "", connect: false });
             isConnected = false;
-            const btn = document.getElementById("conn-btn");
-            if(btn) { btn.innerText = "Connect"; btn.className = "btn-blue"; }
-            if(select) select.disabled = false;
-            
+            btn.innerText = "Connect"; 
+            btn.className = "btn-secondary";
+            select.disabled = false;
             handleDisconnectUI();
         } catch(e) {}
     }
@@ -548,6 +621,7 @@ function updateVisibility() {
       ['autoDetect','manualFields',true], ['nightMode','nightFields',false], 
       ['showTime', 'timeContent',false], ['showCalendar', 'calendarContent',false],
       ['showWeather','weatherContent',false], ['showAQI','aqiContent',false],
+      ['showDaylight', 'daylightContent', false],
       ['showStock','stockContent',false], ['showCrypto','cryptoContent',false], 
       ['showCurrency','currencyContent',false], ['showPc','pcContent',false], 
       ['showMedia', 'mediaContent', false], ['showBambu', 'bambuContent', false]
@@ -578,13 +652,10 @@ function updateNightAction() {
 function reorderPhysicalPanels(orderCsv) {
     const container = document.getElementById('dynamic-panels-container');
     if (!container || !orderCsv) return;
-    
     const orderArr = orderCsv.split(',');
     orderArr.forEach(id => {
         const panel = document.getElementById(`panel-${id}`);
-        if (panel) {
-            container.appendChild(panel);
-        }
+        if (panel) container.appendChild(panel);
     });
 }
 
@@ -603,6 +674,7 @@ function syncScreenOrder(isUserInput = false) {
       item.classList.add('disabled'); item.removeAttribute('draggable'); disabled.push(item);
     }
   });
+  
   list.innerHTML = '';
   enabled.forEach(el => list.appendChild(el)); 
   disabled.forEach(el => list.appendChild(el)); 
@@ -611,30 +683,7 @@ function syncScreenOrder(isUserInput = false) {
   orderInput.value = currentOrder;
   
   reorderPhysicalPanels(currentOrder);
-  
   if (isUserInput) formDirty = true;
-}
-
-function getDragAfterEl(y) {
-  const list = document.getElementById('sortable-list');
-  return [...list.querySelectorAll('.sortable-item:not(.dragging):not(.disabled)')].reduce((closest, child) => {
-    const box = child.getBoundingClientRect();
-    const offset = y - box.top - box.height / 2;
-    if (offset < 0 && offset > closest.offset) return { offset: offset, element: child };
-    else return closest;
-  }, { offset: Number.NEGATIVE_INFINITY }).element;
-}
-
-function moveItem(y) {
-  const list = document.getElementById('sortable-list');
-  const draggable = document.querySelector('.dragging');
-  if (!draggable) return;
-  const afterEl = getDragAfterEl(y);
-  if (afterEl == null) {
-    const firstDis = list.querySelector('.disabled');
-    if (firstDis) list.insertBefore(draggable, firstDis);
-    else list.appendChild(draggable);
-  } else { list.insertBefore(draggable, afterEl); }
 }
 
 function toggleNone() {
@@ -712,6 +761,17 @@ async function fetchDeviceData() {
             if(wrap) wrap.classList.remove("hidden");
             if(ph) ph.classList.add("hidden");
 
+            setVal('theme_bg', d.theme_bg || "#000000");
+            setVal('theme_card', d.theme_card || "#111111");
+            setVal('theme_accent', d.theme_accent || "#ffffff");
+            setVal('theme_text', d.theme_text || "#ffffff");
+            applyLiveTheme();
+
+            setVal('sda_pin', d.sda_pin);
+            setVal('scl_pin', d.scl_pin);
+            setVal('touch_pin', d.touch_pin);
+            updatePinSelects();
+
             setVal('refresh_min', d.refresh_min);
             setCb('autoCycle', d.auto_cycle);
             setVal('screen_int', d.screen_int);
@@ -723,16 +783,6 @@ async function fetchDeviceData() {
             setVal('country_code', d.country_code);
             setVal('city', d.city);
             setVal('timezone', d.timezone);
-
-            const eggElement = document.getElementById("easter-egg");
-            if (eggElement) {
-                if (d.country_code && easterEggs[d.country_code]) {
-                    eggElement.innerText = easterEggs[d.country_code];
-                    eggElement.style.display = "block";
-                } else {
-                    eggElement.style.display = "none";
-                }
-            }
             
             setCb('nightMode', d.night_mode);
             setVal('night_start', d.night_start);
@@ -752,25 +802,36 @@ async function fetchDeviceData() {
             setCb('showWeather', d.show_weather);
             setRadio('temp_unit', d.temp_unit);
             setCb('round_temps', d.round_temps, true);
+            setCb('weather_hide_bar', d.weather_hide_bar, true);
 
             setCb('showAQI', d.show_aqi);
             setRadio('aqi_type', d.aqi_type);
+            setCb('aqi_hide_bar', d.aqi_hide_bar, true);
+
+            setCb('showDaylight', d.show_daylight);
+            setCb('daylight_min', d.daylight_min, true);
 
             setCb('showPc', d.show_pc);
 
             setCb('showStock', d.show_stock);
-            setVal('stock_symbol', d.stock_symbol);
             setCb('stock_fn', d.stock_fn, true);
+            const stCont = document.getElementById("stock-list-container");
+            if (stCont) { stCont.innerHTML = ""; (d.stock_symbols && d.stock_symbols.length > 0 ? d.stock_symbols : ["AAPL"]).forEach(s => window.addStockRow(s)); }
 
             setCb('showCrypto', d.show_crypto);
-            setVal('crypto_id', d.crypto_id);
             setCb('crypto_fn', d.crypto_fn, true);
+            const crCont = document.getElementById("crypto-list-container");
+            if (crCont) { crCont.innerHTML = ""; (d.crypto_ids && d.crypto_ids.length > 0 ? d.crypto_ids : [90]).forEach(c => window.addCryptoRow(c)); }
 
             setCb('showCurrency', d.show_currency);
-            setVal('currency_base', d.currency_base);
-            setVal('currency_target', d.currency_target);
-            setVal('currency_multiplier', d.currency_multiplier);
             setCb('currency_fn', d.currency_fn, true);
+            const cuCont = document.getElementById("currency-list-container");
+            if (cuCont) {
+                cuCont.innerHTML = "";
+                if (d.currency_bases && d.currency_bases.length > 0) {
+                    for(let i=0; i<d.currency_bases.length; i++) window.addCurrencyRow(d.currency_bases[i], d.currency_targets[i], d.currency_multipliers[i]);
+                } else { window.addCurrencyRow("usd", "eur", 1); }
+            }
 
             setCb('showMedia', d.show_media);
             setCb('showBambu', d.show_bambu);
@@ -856,43 +917,59 @@ async function fetchDeviceData() {
             let gr = document.getElementById('aqi-grid'); if(gr) gr.classList.add('hidden');
         }
 
-        if (d.crypto_price !== undefined) {
+        if (d.sunrise !== undefined && d.sunrise !== "") {
+            let nd = document.getElementById('daylight-no-data'); if(nd) nd.style.display = 'none';
+            let gr = document.getElementById('daylight-grid'); if(gr) gr.classList.remove('hidden');
+
+            set('val-sunrise', d.sunrise);
+            set('val-sunset', d.sunset);
+            set('val-noon', d.solar_noon);
+            set('val-length', d.day_length);
+        } else {
+            let nd = document.getElementById('daylight-no-data'); if(nd) nd.style.display = 'block';
+            let gr = document.getElementById('daylight-grid'); if(gr) gr.classList.add('hidden');
+        }
+
+        if (d.stock_data && d.stock_data.length > 0) {
+            let nd = document.getElementById('stock-no-data'); if(nd) nd.style.display = 'none';
+            let gr = document.getElementById('stock-grid'); if(gr) gr.classList.remove('hidden');
+            let pStr = "", cStr = "";
+            d.stock_data.forEach(s => { 
+                pStr += s.symbol + ": $" + s.price + "<br>"; 
+                cStr += (parseFloat(s.change) >= 0 ? "+" : "") + s.change + "%<br>"; 
+            });
+            set('stock-price', pStr, true); set('stock-change', cStr, true); set('stock-upd', 'Last Update: ' + d.update_time);
+        } else {
+            let nd = document.getElementById('stock-no-data'); if(nd) nd.style.display = 'block';
+            let gr = document.getElementById('stock-grid'); if(gr) gr.classList.add('hidden');
+        }
+
+        if (d.crypto_data && d.crypto_data.length > 0) {
             let nd = document.getElementById('crypto-no-data'); if(nd) nd.style.display = 'none';
             let gr = document.getElementById('crypto-grid'); if(gr) gr.classList.remove('hidden');
-
-            set('crypto-price', d.crypto_price + '$');
-            set('crypto-change', d.crypto_change + '%');
-            set('crypto-trend-icon', d.crypto_change >= 0 ? '📈' : '📉');
-            set('crypto-upd', 'Last Update: ' + d.update_time);
+            let pStr = "", cStr = "";
+            d.crypto_data.forEach(s => { 
+                pStr += s.symbol + ": $" + s.price + "<br>"; 
+                cStr += (parseFloat(s.change) >= 0 ? "+" : "") + s.change + "%<br>"; 
+            });
+            set('crypto-price', pStr, true); set('crypto-change', cStr, true); set('crypto-upd', 'Last Update: ' + d.update_time);
         } else {
             let nd = document.getElementById('crypto-no-data'); if(nd) nd.style.display = 'block';
             let gr = document.getElementById('crypto-grid'); if(gr) gr.classList.add('hidden');
         }
 
-        if (d.currency_base_text !== undefined) {
+        if (d.currency_data && d.currency_data.length > 0) {
             let nd = document.getElementById('currency-no-data'); if(nd) nd.style.display = 'none';
             let gr = document.getElementById('currency-grid'); if(gr) gr.classList.remove('hidden');
-
-            set('currency-base-val', d.currency_base_text);
-            set('currency-target-val', d.currency_target_text);
-            set('currency-upd', 'Last Update: ' + d.update_time);
+            let bStr = "", tStr = "";
+            d.currency_data.forEach(s => { 
+                bStr += s.base_text + "<br>"; 
+                tStr += s.target_text + "<br>"; 
+            });
+            set('currency-base-val', bStr, true); set('currency-target-val', tStr, true); set('currency-upd', 'Last Update: ' + d.update_time);
         } else {
             let nd = document.getElementById('currency-no-data'); if(nd) nd.style.display = 'block';
             let gr = document.getElementById('currency-grid'); if(gr) gr.classList.add('hidden');
-        }
-        
-        if (d.stock_price !== undefined) {
-            let nd = document.getElementById('stock-no-data'); if(nd) nd.style.display = 'none';
-            let gr = document.getElementById('stock-grid'); if(gr) gr.classList.remove('hidden');
-
-            set('stock-price', '$' + d.stock_price);
-            set('stock-change', d.stock_change + '%');
-            set('stock-trend-icon', d.stock_change >= 0 ? '📈' : '📉');
-            set('stock-sym', d.stock_symbol + ' Price');
-            set('stock-upd', 'Last Update: ' + d.update_time);
-        } else {
-            let nd = document.getElementById('stock-no-data'); if(nd) nd.style.display = 'block';
-            let gr = document.getElementById('stock-grid'); if(gr) gr.classList.add('hidden');
         }
 
         if (d.pc_cpu !== undefined && d.pc_cpu !== "0.00" && d.pc_cpu !== "0") {
@@ -940,12 +1017,100 @@ async function fetchDeviceData() {
         }
 
     } catch (e) {
-        console.error("Config Sync Error:", e.message); 
+        let errStr = e.message || e;
+        console.error("Config Sync Error:", errStr); 
+
+        if (errStr.includes("timeout")) {
+            console.warn("Sync timeout. Keeping connection open and waiting for next cycle...");
+            setUiStatus("⚠️ Waiting for device data...", COLOR_MUTED, 5000);
+        }
     }
 }
 
+window.updateRowControls = function(containerId, maxLimit) {
+    const container = document.getElementById(containerId);
+    if(!container) return;
+    const rows = container.children;
+    const addBtn = container.nextElementSibling;
+    if(addBtn && addBtn.tagName === 'BUTTON') {
+        addBtn.style.display = rows.length >= maxLimit ? 'none' : 'block';
+    }
+    const removeBtns = container.querySelectorAll('.btn-remove');
+    removeBtns.forEach(btn => { btn.style.display = rows.length <= 1 ? 'none' : 'flex'; });
+};
+
+window.removeRow = function(btn, containerId) {
+    btn.parentElement.remove();
+    formDirty = true;
+    updateRowControls(containerId, 5);
+};
+
+window.addStockRow = function(val = null) {
+    const container = document.getElementById("stock-list-container");
+    if (!container || container.children.length >= 5) return;
+    const div = document.createElement("div"); div.className = "multi-row";
+    let opts = topStocks.map(s => `<option value="${s[1]}">${s[0]} - ${s[1]}</option>`).join('');
+    div.innerHTML = `<div class="input-wrapper"><label class="mt-0">Track Stock/ETF:</label><select name="stock_symbols[]">${opts}</select></div><button type="button" class="btn-remove" onclick="removeRow(this, 'stock-list-container')">-</button>`;
+    container.appendChild(div);
+    if (val) div.querySelector("select").value = val;
+    formDirty = true;
+    updateRowControls('stock-list-container', 5);
+};
+
+window.addCryptoRow = function(val = null) {
+    const container = document.getElementById("crypto-list-container");
+    if (!container || container.children.length >= 5) return;
+    const div = document.createElement("div"); div.className = "multi-row";
+    let opts = topCoins.map(c => `<option value="${c[0]}">${c[1]}</option>`).join('');
+    div.innerHTML = `<div class="input-wrapper"><label class="mt-0">Track Crypto:</label><select name="crypto_ids[]">${opts}</select></div><button type="button" class="btn-remove" onclick="removeRow(this, 'crypto-list-container')">-</button>`;
+    container.appendChild(div);
+    if (val) div.querySelector("select").value = val;
+    formDirty = true;
+    updateRowControls('crypto-list-container', 5);
+};
+
+window.addCurrencyRow = function(bVal = null, tVal = null, mVal = null) {
+    const container = document.getElementById("currency-list-container");
+    if (!container || container.children.length >= 5) return;
+    const div = document.createElement("div"); div.className = "multi-row";
+    let cOpts = allCurrencies.map(c => `<option value="${c[0]}">${c[0].toUpperCase()}</option>`).join('');
+    div.innerHTML = `
+      <div class="input-wrapper"><label class="mt-0">Base:</label><select name="currency_bases[]">${cOpts}</select></div>
+      <div class="input-wrapper"><label class="mt-0">Target:</label><select name="currency_targets[]">${cOpts}</select></div>
+      <div class="input-wrapper"><label class="mt-0">Mult:</label><select name="currency_multipliers[]"><option value="1">1</option><option value="10">10</option><option value="100">100</option><option value="1000">1000</option></select></div>
+      <button type="button" class="btn-remove" onclick="removeRow(this, 'currency-list-container')">-</button>`;
+    container.appendChild(div);
+    if (bVal) div.querySelector("select[name='currency_bases[]']").value = bVal;
+    if (tVal) div.querySelector("select[name='currency_targets[]']").value = tVal;
+    if (mVal) div.querySelector("select[name='currency_multipliers[]']").value = mVal;
+    formDirty = true;
+    updateRowControls('currency-list-container', 5);
+};
+
 window.addEventListener("DOMContentLoaded", () => {
     populateDropdowns();
+
+    const toggleBtn = document.getElementById("toggle-logs-btn");
+    if (toggleBtn) {
+        toggleBtn.addEventListener("click", async () => {
+            isLoggingPaused = !isLoggingPaused;
+            await invoke("toggle_logging", { enable: !isLoggingPaused });
+            toggleBtn.innerText = isLoggingPaused ? "START" : "PAUSE";
+            const logContainer = document.getElementById("log-container");
+            if (logContainer) {
+                if (isLoggingPaused) logContainer.classList.add("hidden");
+                else logContainer.classList.remove("hidden");
+            }
+        });
+    }
+
+    const clearBtn = document.getElementById("clear-logs-btn");
+    if (clearBtn) {
+        clearBtn.addEventListener("click", () => {
+            const lc = document.getElementById("log-container");
+            if (lc) lc.innerHTML = "";
+        });
+    }
     
     const btn = document.getElementById("conn-btn");
     if(btn) btn.addEventListener("click", toggleConnection);
@@ -957,7 +1122,7 @@ window.addEventListener("DOMContentLoaded", () => {
     setInterval(fetchDeviceData, HARDWARE_SYNC_INTERVAL_MS); 
     setTimeout(fetchDeviceData, INITIAL_SYNC_DELAY_MS); 
 
-    ['autoDetect', 'nightMode', 'showTime', 'showCalendar', 'showWeather', 'showPc', 'showCrypto', 'showCurrency', 'showStock', 'showAQI', 'showMedia', 'showBambu', 'autoCycle'].forEach(id => { 
+    ['autoDetect', 'nightMode', 'showTime', 'showCalendar', 'showWeather', 'showDaylight', 'showPc', 'showCrypto', 'showCurrency', 'showStock', 'showAQI', 'showMedia', 'showBambu', 'autoCycle'].forEach(id => { 
         var el = document.getElementById(id); 
         if(el) el.addEventListener('change', () => { updateVisibility(); syncScreenOrder(true); }); 
     });
@@ -965,6 +1130,11 @@ window.addEventListener("DOMContentLoaded", () => {
     document.querySelector('input[name="city"]')?.addEventListener('input', updateLiveHeader);
     document.querySelector('select[name="country_code"]')?.addEventListener('change', updateLiveHeader);
     document.querySelector('select[name="timezone"]')?.addEventListener('change', updateLiveHeader);
+
+    ['theme_bg', 'theme_card', 'theme_accent', 'theme_text'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', applyLiveTheme);
+    });
 
     updateVisibility();
 
@@ -975,45 +1145,28 @@ window.addEventListener("DOMContentLoaded", () => {
 
     const nightActionSelect = document.getElementById('nightActionSelect');
     if (nightActionSelect) nightActionSelect.addEventListener('change', updateNightAction);
+    
+        const list = document.getElementById('sortable-list');
+    
+    list.addEventListener('click', (e) => {
+        if (!e.target.classList.contains('move-btn')) return;
 
-    const list = document.getElementById('sortable-list');
-    
-    document.addEventListener('dragover', e => {
-        e.preventDefault();
-        if (e.dataTransfer) {
-            e.dataTransfer.dropEffect = 'move';
-        }
-    });
+        const item = e.target.closest('.sortable-item');
+        if (!item || item.classList.contains('disabled')) return;
 
-    document.addEventListener('drop', e => {
-        e.preventDefault();
-    });
-    
-    list.addEventListener('dragstart', e => { 
-        const item = e.target.closest('.sortable-item');
-        if (!item || item.classList.contains('disabled')) { 
-            e.preventDefault(); 
-            return; 
+        if (e.target.classList.contains('move-up')) {
+            const prev = item.previousElementSibling;
+            if (prev && !prev.classList.contains('disabled')) {
+                list.insertBefore(item, prev);
+                syncScreenOrder(true);
+            }
+        } else if (e.target.classList.contains('move-down')) {
+            const next = item.nextElementSibling;
+            if (next && !next.classList.contains('disabled')) {
+                list.insertBefore(next, item);
+                syncScreenOrder(true);
+            }
         }
-        
-        setTimeout(() => item.classList.add('dragging'), 0); 
-        
-        if (e.dataTransfer) {
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', item.dataset.id);
-        }
-    });
-    list.addEventListener('dragover', e => { 
-        e.preventDefault(); 
-        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-        moveItem(e.clientY); 
-    });
-    
-    list.addEventListener('dragend', e => { 
-        const item = e.target.closest('.sortable-item');
-        if (item) item.classList.remove('dragging'); 
-        document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
-        syncScreenOrder(true); 
     });
 
     document.getElementById('settings-form').addEventListener('input', () => formDirty = true);
@@ -1025,7 +1178,8 @@ window.addEventListener("DOMContentLoaded", () => {
         const saveBtn = document.getElementById('save-settings-btn');
         saveBtn.innerText = "⏳ Saving...";
         saveBtn.style.opacity = "0.7";
-
+        saveBtn.disabled = true;
+        
         try {
             let mask = 0;
             document.querySelectorAll('.anim-chk').forEach(cb => { if(cb.checked) mask += parseInt(cb.value); });
@@ -1034,7 +1188,6 @@ window.addEventListener("DOMContentLoaded", () => {
             const form = document.getElementById('settings-form');
             const formData = new FormData(form);
             
-            const queryStr = new URLSearchParams(formData).toString();
             const jsonObj = {};
             
             formData.forEach((value, key) => {
@@ -1047,9 +1200,15 @@ window.addEventListener("DOMContentLoaded", () => {
             jsonObj['anim_mask'] = parseInt(document.getElementById('finalMask').value);
             jsonObj['screen_order'] = document.getElementById('screenOrderInput').value;
 
+            jsonObj['stock_symbols'] = Array.from(form.querySelectorAll('select[name="stock_symbols[]"]')).map(s => s.value);
+            jsonObj['crypto_ids'] = Array.from(form.querySelectorAll('select[name="crypto_ids[]"]')).map(s => Number(s.value));
+            jsonObj['currency_bases'] = Array.from(form.querySelectorAll('select[name="currency_bases[]"]')).map(s => s.value);
+            jsonObj['currency_targets'] = Array.from(form.querySelectorAll('select[name="currency_targets[]"]')).map(s => s.value);
+            jsonObj['currency_multipliers'] = Array.from(form.querySelectorAll('select[name="currency_multipliers[]"]')).map(s => Number(s.value));
+
             const jsonPayload = JSON.stringify(jsonObj);
             
-            await invoke("save_device_settings", { query: queryStr, jsonPayload: jsonPayload });
+            await invoke("save_device_settings", { jsonPayload: jsonPayload });
             
             saveBtn.innerText = "✅ Saved Successfully!";
             saveBtn.style.backgroundColor = COLOR_SUCCESS;
@@ -1065,8 +1224,9 @@ window.addEventListener("DOMContentLoaded", () => {
 
         setTimeout(() => {
             saveBtn.innerText = "💾 Save & Apply All Settings";
-            saveBtn.style.backgroundColor = "var(--accent)";
+            saveBtn.style.backgroundColor = "var(--primary-main)";
             saveBtn.style.opacity = "1";
+            saveBtn.disabled = false;
         }, BUTTON_RESET_DELAY_MS);
     });
 });

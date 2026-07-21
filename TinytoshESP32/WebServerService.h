@@ -3,6 +3,7 @@
 
 #include <WebServer.h>
 #include <WiFiManager.h>
+#include <ElegantOTA.h>
 #include "structs.h"
 
 typedef void (*ConfigSaveCallback)();

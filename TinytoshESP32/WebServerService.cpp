@@ -17,11 +17,13 @@ void WebServerService::setAppState(AppState* appState) {
 void WebServerService::begin() {
   server.on("/", HTTP_GET, [this](){ this->handleRoot(); }); 
   server.on("/save", HTTP_POST, [this](){ this->handleSave(); });
-  server.on("/update", HTTP_GET, [this](){ this->handleUpdate(); }); 
+  server.on("/state", HTTP_GET, [this](){ this->handleUpdate(); });
   server.on("/pc-stats", HTTP_POST, [this](){ this->handlePcStats(); });
-  
+
+  ElegantOTA.begin(&server);
+
   server.begin();
-  Serial.println("WebServerService: HTTP Server started."); 
+  Serial.println("WebServerService: HTTP Server started. OTA available at /update");
   
   String uniqueName = state->config.device_id;
 
@@ -33,6 +35,7 @@ void WebServerService::begin() {
 
 void WebServerService::handleClient() {
     server.handleClient();
+    ElegantOTA.loop();
 }
 
 void WebServerService::handleRoot() {
@@ -586,6 +589,7 @@ void WebServerService::handleRoot() {
 
   add("</div>");
   add("<button type='submit'>💾 Save & Apply All Settings</button></form>");
+  add("<a href='/update' style='display:block;text-align:center;margin-top:16px;color:var(--text-muted);font-size:0.85em;'>⚙️ Firmware Update (OTA)</a>");
   
   add("<script>");
   add("let formDirty = false;");
@@ -834,7 +838,7 @@ void WebServerService::handleRoot() {
   add("document.querySelector('form').addEventListener('input', () => formDirty = true);");
   add("document.querySelector('form').addEventListener('change', () => formDirty = true);");
 
-  add("function updateData() { fetch('/update').then(r => r.json()).then(d => {");
+  add("function updateData() { fetch('/state').then(r => r.json()).then(d => {");
   add("  const set = (id, val, html=false) => { const el = document.getElementById(id); if(el) { if(html) el.innerHTML = val; else el.innerText = val; return true; } return false; };");
   add("  const hide = (id, state) => { const el = document.getElementById(id); if(el) el.classList.toggle('hidden', state); };");
 

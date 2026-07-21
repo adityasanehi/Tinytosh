@@ -6,4 +6,4 @@ src-tauri/target/
 TinytoshESP32/build/
 .pio/
 *.bin
-!Tinytosh.bin
+!firmware/*.bin

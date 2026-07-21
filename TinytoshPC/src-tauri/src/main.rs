@@ -181,7 +181,7 @@ async fn fetch_device_data(state: tauri::State<'_, AppState>) -> Result<String, 
     if active.starts_with("WiFi:") {
         let ip = state.target_wifi_ip.lock().unwrap().clone();
         if ip.is_empty() { return Err("No IP".into()); }
-        let url = format!("http://{}/update", ip);
+        let url = format!("http://{}/state", ip);
         
         let agent = ureq::builder().timeout(Duration::from_secs(FETCH_CONFIG_TIMEOUT_SEC)).build();
         match agent.get(&url).call() {

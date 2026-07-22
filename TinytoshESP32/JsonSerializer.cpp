@@ -82,6 +82,8 @@ void JsonSerializer::populateConfigDoc(const Config& config, DynamicJsonDocument
     doc["shop_url"] = config.shopify_url;
     doc["shop_store"] = config.shopify_store_name;
 
+    doc["show_wifi_speed"] = config.show_wifi_speed ? 1 : 0;
+
     doc["show_bambu"] = config.show_bambu ? 1 : 0;
     doc["bambu_ip"] = config.bambu_ip;
     doc["bambu_sn"] = config.bambu_sn;
@@ -178,6 +180,11 @@ String JsonSerializer::buildAppStateJson(const AppState& state) {
         doc["shopify_orders"] = state.shopify.order_count;
         doc["shopify_change"] = String(state.shopify.percent_change, 1);
         doc["shopify_currency"] = state.shopify.currency;
+    }
+
+    if (state.wifiSpeed.updated) {
+        doc["wifi_download_mbps"] = String(state.wifiSpeed.download_mbps, 2);
+        doc["wifi_ping_ms"] = state.wifiSpeed.ping_ms;
     }
 
     if (state.pc.cpu_percent > 0.1) {
@@ -329,6 +336,8 @@ bool JsonSerializer::parseConfig(const char* jsonString, AppState& state) {
     if (doc.containsKey("shop_url")) config.shopify_url = doc["shop_url"].as<String>();
     if (doc.containsKey("shop_store")) config.shopify_store_name = doc["shop_store"].as<String>();
 
+    if (doc.containsKey("show_wifi_speed")) config.show_wifi_speed = doc["show_wifi_speed"] == 1;
+
     if (doc.containsKey("show_bambu")) config.show_bambu = doc["show_bambu"] == 1;
     if (doc.containsKey("bambu_ip")) config.bambu_ip = doc["bambu_ip"].as<String>();
     if (doc.containsKey("bambu_sn")) config.bambu_sn = doc["bambu_sn"].as<String>();
@@ -373,6 +382,7 @@ bool JsonSerializer::parseConfig(const char* jsonString, AppState& state) {
     
     if (!config.show_media) { state.media.status = "stopped"; state.media.name = ""; }
     if (!config.show_shopify) { state.shopify.total_sales = NAN; state.shopify.updated = false; }
+    if (!config.show_wifi_speed) { state.wifiSpeed.download_mbps = NAN; state.wifiSpeed.updated = false; }
 
     return true;
 }

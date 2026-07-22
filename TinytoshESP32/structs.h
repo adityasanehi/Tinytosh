@@ -18,6 +18,7 @@ enum ScreenType {
   SCREEN_PC_MONITOR,
   SCREEN_PC_MEDIA,
   SCREEN_BAMBU,
+  SCREEN_WIFI_SPEED,
   NUM_SCREENS
 };
 
@@ -33,7 +34,8 @@ inline constexpr const char* SCREEN_NAMES[] = {
   "Shopify Sales",
   "PC Monitor",
   "PC Media",
-  "Printer Info"
+  "Printer Info",
+  "WiFi Speed"
 };
 
 enum AnimType {
@@ -83,7 +85,7 @@ struct Config {
   // Screens Settings
   bool screen_auto_cycle = true;
   int screen_interval_sec = 15;
-  int screen_order[NUM_SCREENS] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+  int screen_order[NUM_SCREENS] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
 
   bool show_time = true;
   bool show_calendar = true;
@@ -97,6 +99,7 @@ struct Config {
   bool show_pc = true;
   bool show_media = true;
   bool show_bambu = true;
+  bool show_wifi_speed = false;
 
   bool hide_empty_pc = true;
   bool hide_empty_media = true;
@@ -218,6 +221,13 @@ struct ShopifyData {
   int order_count = 0;
   float percent_change = 0.0;
   String period = "today";
+  bool updated = false;
+};
+
+struct WifiSpeedData {
+  float download_mbps = NAN;
+  int ping_ms = -1;
+  unsigned long last_update_ms = 0;
   bool updated = false;
 };
 
@@ -489,5 +499,6 @@ struct AppState {
   PcStats pc;
   PcMedia media;
   BambuData bambu;
+  WifiSpeedData wifiSpeed;
 };
 #endif

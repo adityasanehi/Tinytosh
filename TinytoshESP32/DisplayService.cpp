@@ -1157,6 +1157,33 @@ void DisplayService::drawBambuScreen(const BambuData& data) {
     display.print(timeStr);
 }
 
+void DisplayService::drawWifiSpeedScreen(const Config& config, const WifiSpeedData& data) {
+    if (!data.updated || isnan(data.download_mbps)) {
+        drawInfoScreen(nullptr, "No Data");
+        return;
+    }
+
+    display.clearDisplay();
+
+    display.setTextColor(SSD1306_WHITE);
+    display.setTextWrap(false);
+    display.setTextSize(1);
+    display.setFont();
+
+    // 1. Download speed
+    display.setTextSize(3);
+    display.setCursor(4, 6);
+    display.print(String(data.download_mbps, 1));
+
+    display.setTextSize(1);
+    display.setCursor(4, 32);
+    display.print("Mbps Download");
+
+    // 2. Ping
+    display.setCursor(4, 48);
+    display.print("Ping: " + String(data.ping_ms) + " ms");
+}
+
 void DisplayService::drawInfoScreen(const unsigned char* image, String text) {
     display.clearDisplay();
 
@@ -1229,6 +1256,7 @@ bool DisplayService::isScreenEnabled(const AppState& state, int screenIndex) {
             }
             return true;
         }
+        case SCREEN_WIFI_SPEED:     return config.show_wifi_speed;
         default: return false;
     }
 }
@@ -1247,6 +1275,7 @@ void DisplayService::drawScreen(int screenIndex, const AppState& state, int subI
     case SCREEN_PC_MONITOR: drawPcScreen(state.pc); break;
     case SCREEN_PC_MEDIA: drawMediaScreen(state.media); break;
     case SCREEN_BAMBU: drawBambuScreen(state.bambu); break;
+    case SCREEN_WIFI_SPEED: drawWifiSpeedScreen(state.config, state.wifiSpeed); break;
   }
 }
 

@@ -57,6 +57,7 @@ void WebServerService::handleRoot() {
   AirQualityData& aqi = state->aqi;
   DaylightData& daylight = state->daylight;
   ShopifyData& shopify = state->shopify;
+  WifiSpeedData& wifiSpeed = state->wifiSpeed;
   PcStats& pc = state->pc;
   PcMedia& media = state->media;
 
@@ -65,6 +66,7 @@ void WebServerService::handleRoot() {
   bool daylightValid = daylight.sunrise_mins != -1;
   bool pcValid = pc.cpu_percent > 0.1;
   bool shopifyValid = shopify.updated;
+  bool wifiSpeedValid = wifiSpeed.updated;
 
   add("<html><head><title>Tinytosh | Web Panel</title>");
   add("<meta name='viewport' content='width=device-width, initial-scale=1'><meta charset='UTF-8'>");
@@ -303,6 +305,7 @@ void WebServerService::handleRoot() {
       case SCREEN_PC_MONITOR: targetId = "showPc"; break;
       case SCREEN_PC_MEDIA: targetId = "showMedia"; break;
       case SCREEN_BAMBU: targetId = "showBambu"; break;
+      case SCREEN_WIFI_SPEED: targetId = "showWifiSpeed"; break;
     }
     
     add("<li class='sortable-item' data-id='" + String(screenId) + "' data-target='" + targetId + "' draggable='true'>");
@@ -584,6 +587,27 @@ void WebServerService::handleRoot() {
               add("</div></div>");
               break;
           }
+
+          case SCREEN_WIFI_SPEED: {
+              add("<div class='panel' id='panel-" + String(screenId) + "'>");
+              add("<label class='checkbox-label mt-0'><input type='checkbox' id='showWifiSpeed' name='show_wifi_speed' value='1' " + String(config.show_wifi_speed ? "checked" : "") + "> WiFi Speed Screen</label>");
+              add("<div id='wifiSpeedContent' class='collapsible'>");
+
+              if (!wifiSpeedValid) {
+                  add("<div id='wifi-speed-no-data' class='no-data-tile'>📶 Speed test data will be available after sync</div><div id='wifi-speed-grid' class='hidden'>");
+              } else {
+                  add("<div id='wifi-speed-no-data' class='no-data-tile hidden'>📶 Speed test data will be available after sync</div><div id='wifi-speed-grid'>");
+              }
+
+              add("<div class='dashboard-grid'>");
+              add("<div class='tile'><div class='tile-icon'>⬇️</div><div class='tile-value' id='wifi-speed-mbps'>" + String(wifiSpeed.download_mbps, 1) + " Mbps</div><div class='tile-label'>Download</div></div>");
+              add("<div class='tile'><div class='tile-icon'>📶</div><div class='tile-value' id='wifi-speed-ping'>" + String(wifiSpeed.ping_ms) + " ms</div><div class='tile-label'>Ping</div></div>");
+              add("</div><div class='update-footer' id='wifi-speed-upd'>Last Update: " + weather.update_time + "</div></div>");
+
+              add("<p class='help-text mt-0'>Runs a download test against Cloudflare on each refresh cycle. Uses real bandwidth, so keep the refresh interval reasonable.</p>");
+              add("</div></div>");
+              break;
+          }
       }
   }
 
@@ -595,7 +619,7 @@ void WebServerService::handleRoot() {
   add("let formDirty = false;");
   
   add("function updateVisibility(){");
-  add("  var pairs = [['autoDetect','manualFields',true], ['nightMode','nightFields',false], ['showTime', 'timeContent',false], ['showCalendar', 'calendarContent',false], ['showWeather','weatherContent',false], ['showDaylight','daylightContent',false], ['showPc','pcContent',false], ['showCrypto','cryptoContent',false], ['showCurrency','currencyContent',false], ['showStock','stockContent',false], ['showShopify','shopifyContent',false], ['showAQI','aqiContent',false], ['showMedia','mediaContent',false], ['showBambu','bambuContent',false]];");
+  add("  var pairs = [['autoDetect','manualFields',true], ['nightMode','nightFields',false], ['showTime', 'timeContent',false], ['showCalendar', 'calendarContent',false], ['showWeather','weatherContent',false], ['showDaylight','daylightContent',false], ['showPc','pcContent',false], ['showCrypto','cryptoContent',false], ['showCurrency','currencyContent',false], ['showStock','stockContent',false], ['showShopify','shopifyContent',false], ['showAQI','aqiContent',false], ['showMedia','mediaContent',false], ['showBambu','bambuContent',false], ['showWifiSpeed','wifiSpeedContent',false]];");
   add("  pairs.forEach(p => {");
   add("    var ch = document.getElementById(p[0]); if(!ch) return;");
   add("    var target = document.getElementById(p[1]);");
@@ -647,7 +671,7 @@ void WebServerService::handleRoot() {
   }
   add("div.innerHTML = `<div class='input-wrapper'><label class='mt-0'>Base:</label><select name='currency_bases[]'>${cOpts}</select></div><div class='input-wrapper'><label class='mt-0'>Target:</label><select name='currency_targets[]'>${cOpts}</select></div><div class='input-wrapper'><label class='mt-0'>Mult:</label><select name='currency_multipliers[]'><option value='1'>1</option><option value='10'>10</option><option value='100'>100</option><option value='1000'>1000</option></select></div><button type='button' class='btn-remove' onclick=\"removeRow(this, 'currency-list-container')\">-</button>`; container.appendChild(div); if (bVal) div.querySelector(\"select[name='currency_bases[]']\").value = bVal; if (tVal) div.querySelector(\"select[name='currency_targets[]']\").value = tVal; if (mVal) div.querySelector(\"select[name='currency_multipliers[]']\").value = mVal; formDirty = true; updateRowControls('currency-list-container', 5); };");
 
-  add("['autoDetect', 'nightMode', 'showTime', 'showCalendar', 'showWeather', 'showDaylight', 'showPc', 'showCrypto', 'showCurrency', 'showStock', 'showShopify', 'showAQI', 'showMedia', 'showBambu', 'autoCycle'].forEach(id => { var el=document.getElementById(id); if(el) el.addEventListener('change', updateVisibility); });");
+  add("['autoDetect', 'nightMode', 'showTime', 'showCalendar', 'showWeather', 'showDaylight', 'showPc', 'showCrypto', 'showCurrency', 'showStock', 'showShopify', 'showAQI', 'showMedia', 'showBambu', 'showWifiSpeed', 'autoCycle'].forEach(id => { var el=document.getElementById(id); if(el) el.addEventListener('change', updateVisibility); });");
   add("updateVisibility();");
 
   add("const countryGreetings = {");
@@ -741,7 +765,7 @@ void WebServerService::handleRoot() {
   add("  reorderPhysicalPanels(orderInput.value);");
   add("}");
 
-  add("const panelCheckboxes = ['showTime', 'showCalendar', 'showWeather', 'showAQI', 'showDaylight', 'showCrypto', 'showCurrency', 'showStock', 'showShopify', 'showPc', 'showMedia', 'showBambu'];");
+  add("const panelCheckboxes = ['showTime', 'showCalendar', 'showWeather', 'showAQI', 'showDaylight', 'showCrypto', 'showCurrency', 'showStock', 'showShopify', 'showPc', 'showMedia', 'showBambu', 'showWifiSpeed'];");
   add("panelCheckboxes.forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('change', syncScreenOrder); });");
 
   add("function getDragAfterEl(y) {");
@@ -907,6 +931,8 @@ void WebServerService::handleRoot() {
   add("    setVal('shopify_store', d.shopify_store);");
   add("    setCb('shopify_fn', d.shopify_fn, true);");
 
+  add("    setCb('showWifiSpeed', d.show_wifi_speed);");
+
   add("    setCb('showMedia', d.show_media);");
 
   add("    setCb('showBambu', d.show_bambu);");
@@ -1002,6 +1028,13 @@ void WebServerService::handleRoot() {
   add("    set('shopify-period', d.shopify_period + ' Sales');");
   add("    set('shopify-upd', 'Last Update: ' + d.update_time);");
   add("  } else { hide('shopify-no-data', false); hide('shopify-grid', true); }");
+
+  add("  if (d.wifi_download_mbps !== undefined && d.wifi_download_mbps !== 'nan') {");
+  add("    if (!set('wifi-speed-mbps', d.wifi_download_mbps + ' Mbps')) { location.reload(); return; }");
+  add("    hide('wifi-speed-no-data', true); hide('wifi-speed-grid', false);");
+  add("    set('wifi-speed-ping', d.wifi_ping_ms + ' ms');");
+  add("    set('wifi-speed-upd', 'Last Update: ' + d.update_time);");
+  add("  } else { hide('wifi-speed-no-data', false); hide('wifi-speed-grid', true); }");
 
   add("  if (d.pc_cpu !== undefined && d.pc_cpu !== '0.00' && d.pc_cpu !== '0') {");
   add("    if (!set('pc-cpu', Math.round(parseFloat(d.pc_cpu)) + '%')) { location.reload(); return; }");

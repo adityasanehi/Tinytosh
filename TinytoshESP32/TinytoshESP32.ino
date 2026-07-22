@@ -19,6 +19,7 @@
 #include "ShopifyService.h"
 #include "PcMonitorService.h"
 #include "BambuService.h"
+#include "WifiSpeedService.h"
 
 // Global Constants
 const char* AP_SSID = "Tinytosh";
@@ -63,6 +64,7 @@ StockService stockService;
 ShopifyService shopifyService;
 PcMonitorService pcMonitorService;
 BambuService bambuService;
+WifiSpeedService wifiSpeedService;
 
 unsigned long lastScreenSwitch = 0;
 int currentScreen = 0;
@@ -350,6 +352,12 @@ void updateAllData() {
     shopifyService.fetchSales(appState.config, appState.shopify);
   }
 
+  // 9b. Run WiFi Speed Test (Independent)
+  if (appState.config.show_wifi_speed) {
+    displayService.showOLEDStatus({"\n", "\n", "Testing WiFi Speed...", "\n", "This may take a moment"}, true);
+    wifiSpeedService.runTest(appState.wifiSpeed);
+  }
+
   displayService.showOLEDStatus({"\n", "\n", "Data Updated", "\n", "\n", "Tinytosh is Ready", "\n", "\n", "Welcome!"}, true);
 
   // 10. Save Everything
@@ -395,6 +403,7 @@ void backgroundDataFetchTask(void* parameter) {
     for (int i = 0; i < appState.config.stock_count; i++) stockService.fetchStock(appState.config.stock_symbols[i], appState.stocks[i]);
   }
   if (appState.config.show_shopify && appState.config.shopify_url.length() > 0) shopifyService.fetchSales(appState.config, appState.shopify);
+  if (appState.config.show_wifi_speed) wifiSpeedService.runTest(appState.wifiSpeed);
   if (appState.config.show_calendar && appState.config.calendar_show_holidays && appState.calendar.last_fetch_year != current_year) calendarService.fetchHolidays(appState.config.country_code, appState.calendar);
   
   Serial.println("Background Task: Updates complete.");
